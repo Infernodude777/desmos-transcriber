@@ -120,7 +120,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'extract') {
     console.log('Extraction requested');
     
-    // Check if page script is ready
+    // Check if page script is ready (no timeout - wait as long as needed)
     const checkReady = setInterval(() => {
       if (window.__DESMOS_READY__) {
         clearInterval(checkReady);
@@ -130,16 +130,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         sendResponse({ success: true, data: result });
       }
     }, 100);
-    
-    // Timeout after 30 seconds
-    setTimeout(() => {
-      clearInterval(checkReady);
-      sendResponse({ 
-        success: false, 
-        error: 'Desmos never became ready',
-        data: { equations: [], debugLog: 'Timeout: Desmos calculator not found after 30 seconds' }
-      });
-    }, 30000);
     
     return true; // Keep message channel open
   }

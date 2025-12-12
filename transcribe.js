@@ -43,10 +43,8 @@ document.addEventListener('DOMContentLoaded', async function() {
           showError('Error communicating with extension: ' + chrome.runtime.lastError.message);
           urlInputSection.style.display = 'block';
         } else if (response && response.success) {
-          // Wait a moment then reload to show the data
-          setTimeout(() => {
-            location.reload();
-          }, 1000);
+          // Start progressive transcription instead of reloading
+          startProgressiveTranscription();
         } else {
           showError(response?.error || 'Unknown error occurred');
           urlInputSection.style.display = 'block';
@@ -451,4 +449,145 @@ function showNotification(message) {
       document.body.removeChild(notification);
     }, 300);
   }, 2000);
+}
+
+// Progressive transcription - process equations one by one with live updates
+async function startProgressiveTranscription() {
+  const container = document.getElementById('equationsContainer');
+  const progressSection = document.getElementById('progressSection');
+  const progressBar = document.getElementById('progressBar');
+  const progressText = document.getElementById('progressText');
+  const progressStatus = document.getElementById('progressStatus');
+  const controls = document.getElementById('controls');
+  const sourceUrl = document.getElementById('sourceUrl');
+  
+  try {
+    // Get the equations from storage
+    const data = await chrome.storage.local.get(['equations', 'sourceUrl', 'debugLog']);
+    
+    if (!data.equations || data.equations.length === 0) {
+      showError('No equations found to transcribe');
+      return;
+    }
+    
+    const equations = data.equations;
+    const totalCount = equations.length;
+    
+    // Show progress section
+    progressSection.style.display = 'block';
+    container.innerHTML = '';
+    sourceUrl.textContent = `Source: ${data.sourceUrl || 'Unknown'}`;
+    
+    // Process folders first for folder map
+    const folderMap = new Map();
+    equations.forEach(eq => {
+      if (eq.type === 'folder') {
+        folderMap.set(eq.id, eq);
+      }
+    });
+    
+    // Process each equation one by one
+    for (let i = 0; i < equations.length; i++) {
+      const eq = equations[i];
+      const progress = Math.round(((i + 1) / totalCount) * 100);
+      
+      // Update progress bar
+      progressBar.style.width = `${progress}%`;
+      progressText.textContent = `${progress}%`;
+      
+      // Update status message
+      if (eq.type === 'folder') {
+        progressStatus.textContent = `Processing folder "${eq.title}" (${i + 1}/${totalCount})`;
+      } else {
+        const previewText = eq.latex ? eq.latex.substring(0, 30) : 'equation';
+        progressStatus.textContent = `Transcribing equation ${i + 1}/${totalCount}: ${previewText}...`;
+      }
+      
+      // Create and display the transcribed item immediately
+      if (eq.type === 'folder') {
+        const folderDiv = document.createElement('div');
+        folderDiv.className = 'equation-folder';
+        
+        const contentDiv = document.createElement('div');
+        contentDiv.className = 'equation-content';
+        
+        const textDiv = document.createElement('div');
+        textDiv.className = 'equation-text';
+        textDiv.textContent = `📁 ${eq.title}`;
+        
+        contentDiv.appendChild(textDiv);
+        folderDiv.appendChild(contentDiv);
+        container.appendChild(folderDiv);
+      } else if (eq.latex) {
+        const transcribed = transcribeLatex(eq.latex);
+        const inFolder = eq.folderId && folderMap.has(eq.folderId);
+        
+        const div = document.createElement('div');
+        div.className = inFolder ? 'equation-item in-folder' : 'equation-item';
+        
+        const contentDiv = document.createElement('div');
+        contentDiv.className = 'equation-content';
+        
+        const textDiv = document.createElement('div');
+        textDiv.className = 'equation-text';
+        textDiv.textContent = transcribed;
+        
+        const copyBtn = document.createElement('button');
+        copyBtn.className = 'copy-btn';
+        copyBtn.textContent = '📋 Copy';
+        copyBtn.onclick = () => {
+          copyToClipboard(transcribed);
+          copyBtn.textContent = '✓ Copied!';
+          setTimeout(() => {
+            copyBtn.textContent = '📋 Copy';
+          }, 2000);
+        };
+        
+        contentDiv.appendChild(textDiv);
+        contentDiv.appendChild(copyBtn);
+        div.appendChild(contentDiv);
+        container.appendChild(div);
+      }
+      
+      // Small delay to show progress (like ChatGPT Bulk Delete does)
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
+    
+    // Hide progress, show controls
+    progressSection.style.display = 'none';
+    controls.style.display = 'flex';
+    
+    // Set up copy all button
+    const copyAllBtn = document.getElementById('copyAllBtn');
+    const downloadBtn = document.getElementById('downloadBtn');
+    
+    // Process all equations for copy/download
+    const transcribedEquations = equations.map(eq => {
+      if (eq.type === 'folder') {
+        return `📁 ${eq.title}`;
+      } else if (eq.latex) {
+        return transcribeLatex(eq.latex);
+      }
+      return '';
+    }).filter(t => t);
+    
+    copyAllBtn.onclick = () => {
+      const allText = transcribedEquations.join('\n\n');
+      copyToClipboard(allText);
+      showNotification('All equations copied!');
+    };
+    
+    downloadBtn.onclick = () => {
+      const allText = transcribedEquations.join('\n\n');
+      downloadAsText(allText, 'desmos-equations.txt');
+      showNotification('Downloaded!');
+    };
+    
+    showNotification(`✓ Transcribed ${totalCount} items successfully!`);
+    
+  } catch (error) {
+    console.error('Error in progressive transcription:', error);
+    progressSection.style.display = 'none';
+    showError('Error during transcription: ' + error.message);
+  }
 }
