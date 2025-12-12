@@ -2,9 +2,31 @@
 
 A Chrome extension that transcribes Desmos calculator equations into properly formatted mathematical notation, ready for copying and pasting.
 
+## ✅ Recent Updates (Dec 2024)
+
+**Complete rewrite for reliability:**
+- ✅ Fixed extraction timing issues - waits properly for Desmos to initialize
+- ✅ Added progressive transcription with 0-100% progress bar
+- ✅ Implemented proper tab management and callbacks
+- ✅ Added multiple calculator detection methods
+- ✅ Improved error handling and console logging
+- ✅ Auto-reload when extraction completes
+- ✅ Extensive testing documentation
+
+**See [CHANGES.md](CHANGES.md) for detailed technical changes.**
+
+## Quick Start
+
+1. Install in Opera GX/Chrome: `opera://extensions` → Developer mode → Load unpacked
+2. Click extension icon → Enter URL: `https://www.desmos.com/calculator/ispi70ryez`
+3. Click "Extract Equations" → Wait 10-15 seconds → See results!
+
+**📖 Read [QUICKSTART.md](QUICKSTART.md) for 60-second testing guide**
+
 ## Features
 
 - **Extract Equations**: Automatically extracts all equations from a Desmos calculator link
+- **Progressive Display**: Shows equations one by one with real-time progress bar
 - **Proper Notation**: Converts Desmos LaTeX to standard mathematical notation
 - **Piecewise Functions**: Formats piecewise functions in readable format:
   ```
@@ -18,13 +40,14 @@ A Chrome extension that transcribes Desmos calculator equations into properly fo
 - **Easy Copying**: Copy individual equations or all at once
 - **Download**: Save equations as a text file
 - **Beautiful UI**: Clean, mathematical interface with gradient styling
+- **Detailed Logging**: Console logs at every step for debugging
 
 ## Installation
 
 ### For Development:
 
 1. Clone or download this repository
-2. Open Chrome and navigate to `chrome://extensions/`
+2. Open Chrome/Opera and navigate to `chrome://extensions/` or `opera://extensions`
 3. Enable "Developer mode" in the top right
 4. Click "Load unpacked" and select the `desmos-transcriber` folder
 5. The extension icon should appear in your toolbar
