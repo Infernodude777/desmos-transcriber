@@ -29,9 +29,51 @@ async function handleUrlExtraction(url) {
     });
   });
   
-  // Wait extra time for Desmos to initialize (8 seconds to be safe)
-  console.log('Waiting 8 seconds for Desmos to fully initialize...');
-  await new Promise(resolve => setTimeout(resolve, 8000));
+  // Wait initial time for page to settle
+  console.log('Waiting 3 seconds for page to settle...');
+  await new Promise(resolve => setTimeout(resolve, 3000));
+  
+  // Poll for Desmos to be ready (up to 30 seconds)
+  console.log('Polling for Desmos calculator to be ready...');
+  const maxAttempts = 30;
+  let attempt = 0;
+  let ready = false;
+  
+  while (attempt < maxAttempts && !ready) {
+    attempt++;
+    console.log(`Attempt ${attempt}/${maxAttempts}...`);
+    
+    try {
+      const checkResults = await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        function: checkDesmosReady
+      });
+      
+      ready = checkResults[0].result;
+      
+      if (ready) {
+        console.log('✓ Desmos is ready!');
+        break;
+      }
+    } catch (e) {
+      console.log('Check failed:', e.message);
+    }
+    
+    if (!ready) {
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+  }
+  
+  if (!ready) {
+    console.error('❌ Desmos did not become ready after 30 seconds');
+    await chrome.tabs.remove(tab.id);
+    await chrome.storage.local.set({ 
+      error: 'Desmos calculator did not load properly. The page may be blocked or slow to load.',
+      sourceUrl: url,
+      debugLog: `Waited 30 seconds but Desmos calculator never became ready.`
+    });
+    return;
+  }
   
   // Try to extract equations
   try {
@@ -81,6 +123,40 @@ async function handleUrlExtraction(url) {
     });
     throw error;
   }
+}
+
+// Check if Desmos calculator is ready
+function checkDesmosReady() {
+  // Check if window.Calc exists and has getState
+  if (window.Calc && typeof window.Calc.getState === 'function') {
+    try {
+      const state = window.Calc.getState();
+      if (state && state.expressions) {
+        return true;
+      }
+    } catch (e) {
+      return false;
+    }
+  }
+  
+  // Check if Desmos namespace exists with calculator instances
+  if (window.Desmos) {
+    const containers = document.querySelectorAll('.dcg-calculator-api-container');
+    for (let container of containers) {
+      if (container.calculator && typeof container.calculator.getState === 'function') {
+        try {
+          const state = container.calculator.getState();
+          if (state && state.expressions) {
+            return true;
+          }
+        } catch (e) {
+          continue;
+        }
+      }
+    }
+  }
+  
+  return false;
 }
 
 // When extension icon is clicked, open the transcribe page
