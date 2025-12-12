@@ -42,21 +42,27 @@ async function handleUrlExtraction(url) {
     });
     
     console.log('Script execution results:', results);
-    const equations = results[0].result;
-    console.log('Equations extracted:', equations);
+    const result = results[0].result;
+    const equations = result.equations;
+    const debugLog = result.debugLog;
     
-    // Store the results
+    console.log('Equations extracted:', equations);
+    console.log('Debug log:', debugLog);
+    
+    // Store the results including debug log
     if (equations && equations.length > 0) {
       console.log(`✓ Successfully extracted ${equations.length} items`);
       await chrome.storage.local.set({ 
         equations: equations,
-        sourceUrl: url 
+        sourceUrl: url,
+        debugLog: debugLog
       });
     } else {
       console.error('❌ No equations returned from extraction');
       await chrome.storage.local.set({ 
-        error: 'No equations found. The page may not be fully loaded or may not contain any equations.',
-        sourceUrl: url 
+        error: 'No equations found. Check the debug log below for details.',
+        sourceUrl: url,
+        debugLog: debugLog
       });
     }
     
@@ -70,7 +76,8 @@ async function handleUrlExtraction(url) {
     await chrome.tabs.remove(tab.id);
     await chrome.storage.local.set({ 
       error: 'Error extracting equations: ' + error.message,
-      sourceUrl: url 
+      sourceUrl: url,
+      debugLog: `Error: ${error.message}\n\nStack: ${error.stack}`
     });
     throw error;
   }
@@ -126,9 +133,15 @@ chrome.action.onClicked.addListener(async (tab) => {
 
 // Function to extract Desmos data - runs in the context of the Desmos page
 function extractDesmosData() {
-  console.log('=== Starting Desmos data extraction ===');
-  console.log('Current URL:', window.location.href);
-  console.log('Document readyState:', document.readyState);
+  const logs = [];
+  const log = (msg) => {
+    console.log(msg);
+    logs.push(msg);
+  };
+  
+  log('=== Starting Desmos data extraction ===');
+  log('Current URL: ' + window.location.href);
+  log('Document readyState: ' + document.readyState);
   
   try {
     let calculator = null;
@@ -136,19 +149,19 @@ function extractDesmosData() {
     // Method 1: Try window.Calc (most common)
     if (window.Calc && typeof window.Calc.getState === 'function') {
       calculator = window.Calc;
-      console.log('✓ Found calculator via window.Calc');
+      log('✓ Found calculator via window.Calc');
     }
     
     // Method 2: Try Desmos.GraphingCalculator instances
     if (!calculator && window.Desmos) {
-      console.log('Trying Desmos namespace...');
+      log('Trying Desmos namespace...');
       const containers = document.querySelectorAll('.dcg-calculator-api-container');
-      console.log(`Found ${containers.length} calculator containers`);
+      log(`Found ${containers.length} calculator containers`);
       
       for (let container of containers) {
         if (container.calculator && typeof container.calculator.getState === 'function') {
           calculator = container.calculator;
-          console.log('✓ Found calculator via container.calculator');
+          log('✓ Found calculator via container.calculator');
           break;
         }
       }
@@ -156,7 +169,7 @@ function extractDesmosData() {
     
     // Method 3: Search window object for calculator-like objects
     if (!calculator) {
-      console.log('Searching window object...');
+      log('Searching window object...');
       const calcKeys = [];
       for (let key in window) {
         try {
@@ -167,7 +180,7 @@ function extractDesmosData() {
             const testState = obj.getState();
             if (testState && testState.expressions) {
               calculator = obj;
-              console.log(`✓ Found calculator via window.${key}`);
+              log(`✓ Found calculator via window.${key}`);
               break;
             }
           }
@@ -176,21 +189,21 @@ function extractDesmosData() {
         }
       }
       if (calcKeys.length > 0) {
-        console.log('Found potential calculator keys:', calcKeys);
+        log('Found potential calculator keys: ' + calcKeys.join(', '));
       }
     }
     
     // Method 4: Try to find via data attributes or IDs
     if (!calculator) {
-      console.log('Trying to find via DOM...');
+      log('Trying to find via DOM...');
       const calcElements = document.querySelectorAll('[class*="calculator"]');
-      console.log(`Found ${calcElements.length} elements with 'calculator' in class`);
+      log(`Found ${calcElements.length} elements with 'calculator' in class`);
       
       for (let elem of calcElements) {
-        console.log('Checking element:', elem.className);
+        log('Checking element: ' + elem.className);
         if (elem.calculator && typeof elem.calculator.getState === 'function') {
           calculator = elem.calculator;
-          console.log('✓ Found calculator via DOM element');
+          log('✓ Found calculator via DOM element');
           break;
         }
       }
@@ -198,60 +211,67 @@ function extractDesmosData() {
     
     // Method 5: Last resort - check all elements for calculator property
     if (!calculator) {
-      console.log('Last resort: checking all elements...');
+      log('Last resort: checking all elements...');
       const allElements = document.querySelectorAll('*');
+      log(`Scanning ${allElements.length} elements...`);
+      let scannedCount = 0;
       for (let elem of allElements) {
         if (elem.calculator && typeof elem.calculator === 'object' && typeof elem.calculator.getState === 'function') {
           calculator = elem.calculator;
-          console.log('✓ Found calculator via element scan');
+          log(`✓ Found calculator via element scan (checked ${scannedCount} elements)`);
+          break;
+        }
+        scannedCount++;
+        if (scannedCount > 1000) {
+          log('Stopped scanning after 1000 elements');
           break;
         }
       }
     }
     
     if (!calculator || typeof calculator.getState !== 'function') {
-      console.error('❌ Calculator not found after all methods');
-      console.log('Window.Calc exists?', !!window.Calc);
-      console.log('Window.Desmos exists?', !!window.Desmos);
+      log('❌ Calculator not found after all methods');
+      log('Window.Calc exists? ' + (!!window.Calc));
+      log('Window.Desmos exists? ' + (!!window.Desmos));
       const relevantKeys = Object.keys(window).filter(k => 
         k.toLowerCase().includes('calc') || 
         k.toLowerCase().includes('desmos') ||
         k.toLowerCase().includes('graph')
       );
-      console.log('Relevant window properties:', relevantKeys);
-      return [];
+      log('Relevant window properties: ' + relevantKeys.join(', '));
+      return { equations: [], debugLog: logs.join('\n') };
     }
     
     // Get the state which contains all expressions
-    console.log('Calling getState()...');
+    log('Calling getState()...');
     const state = calculator.getState();
-    console.log('State received:', state ? 'YES' : 'NO');
+    log('State received: ' + (state ? 'YES' : 'NO'));
     
     if (!state) {
-      console.error('❌ getState() returned null/undefined');
-      return [];
+      log('❌ getState() returned null/undefined');
+      return { equations: [], debugLog: logs.join('\n') };
     }
     
     if (!state.expressions) {
-      console.error('❌ State has no expressions property');
-      console.log('State keys:', Object.keys(state));
-      return [];
+      log('❌ State has no expressions property');
+      log('State keys: ' + Object.keys(state).join(', '));
+      return { equations: [], debugLog: logs.join('\n') };
     }
     
     if (!state.expressions.list) {
-      console.error('❌ State.expressions has no list property');
-      console.log('Expressions keys:', Object.keys(state.expressions));
-      return [];
+      log('❌ State.expressions has no list property');
+      log('Expressions keys: ' + Object.keys(state.expressions).join(', '));
+      return { equations: [], debugLog: logs.join('\n') };
     }
     
     const equations = [];
     
-    console.log(`Processing ${state.expressions.list.length} expressions...`);
+    log(`Processing ${state.expressions.list.length} expressions...`);
     
     // Process each expression
     state.expressions.list.forEach((expr, index) => {
       const preview = expr.latex ? expr.latex.substring(0, 30) + '...' : 'no latex';
-      console.log(`[${index}] Type: ${expr.type}, Latex: ${preview}, FolderId: ${expr.folderId || 'none'}`);
+      log(`[${index}] Type: ${expr.type}, Latex: ${preview}, FolderId: ${expr.folderId || 'none'}`);
       
       if (expr.type === 'folder') {
         equations.push({
@@ -260,7 +280,7 @@ function extractDesmosData() {
           title: expr.title || 'Folder',
           collapsed: expr.collapsed || false
         });
-        console.log(`  → Added folder: "${expr.title}"`);
+        log(`  → Added folder: "${expr.title}"`);
       } else if (expr.latex) {
         // Include any expression with latex, regardless of type
         equations.push({
@@ -270,17 +290,16 @@ function extractDesmosData() {
           folderId: expr.folderId || null,
           hidden: expr.hidden || false
         });
-        console.log(`  → Added equation (in folder: ${!!expr.folderId})`);
+        log(`  → Added equation (in folder: ${!!expr.folderId})`);
       }
     });
     
-    console.log(`=== Extraction complete: ${equations.length} items found ===`);
-    return equations;
+    log(`=== Extraction complete: ${equations.length} items found ===`);
+    return { equations: equations, debugLog: logs.join('\n') };
     
   } catch (error) {
-    console.error('❌ Error during extraction:', error);
-    console.error('Error message:', error.message);
-    console.error('Stack trace:', error.stack);
-    return [];
+    log('❌ Error during extraction: ' + error.message);
+    log('Error stack: ' + error.stack);
+    return { equations: [], debugLog: logs.join('\n') };
   }
 }

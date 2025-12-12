@@ -299,3 +299,32 @@ button {
     transform: translateY(-20px);
   }
 }
+
+/* Debug panel */
+.debug-panel {
+  margin-top: 30px;
+  padding: 20px;
+  background: #f8f9fa;
+  border: 2px solid #dee2e6;
+  border-radius: 8px;
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+}
+
+.debug-panel h3 {
+  margin: 0 0 15px 0;
+  color: #495057;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.debug-panel pre {
+  background: white;
+  padding: 15px;
+  border-radius: 5px;
+  overflow-x: auto;
+  max-height: 400px;
+  overflow-y: auto;
+  margin: 0;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}

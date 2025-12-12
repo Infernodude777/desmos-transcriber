@@ -60,7 +60,15 @@ document.addEventListener('DOMContentLoaded', async function() {
   
   try {
     // Get stored equation data
-    const data = await chrome.storage.local.get(['equations', 'sourceUrl', 'error']);
+    const data = await chrome.storage.local.get(['equations', 'sourceUrl', 'error', 'debugLog']);
+    
+    // Show debug log if available
+    if (data.debugLog) {
+      const debugPanel = document.getElementById('debugPanel');
+      const debugLog = document.getElementById('debugLog');
+      debugLog.textContent = data.debugLog;
+      debugPanel.style.display = 'block';
+    }
     
     // Check if there was an error during extraction
     if (data.error) {
