@@ -1,84 +1,59 @@
-# Quick Start Guide - Desmos Transcriber
+# ⚡ 60-SECOND INSTALL & TEST
 
-## Installation (5 minutes)
+## Install (20 seconds)
+1. Open: `opera://extensions`
+2. Toggle: **Developer mode** ON
+3. Click: **Load unpacked**
+4. Select: `/workspaces/desmos-transcriber`
 
-### Step 1: Load the Extension
-1. Open Chrome browser
-2. Type `chrome://extensions/` in the address bar and press Enter
-3. Enable **Developer mode** by clicking the toggle in the top-right corner
-4. Click **"Load unpacked"** button
-5. Navigate to and select the `desmos-transcriber` folder
-6. You should see the Desmos Transcriber extension card appear
+## Test (40 seconds)
+1. Click extension icon in toolbar
+2. Paste: `https://www.desmos.com/calculator/ispi70ryez`
+3. Click: **Extract Equations**
+4. Wait: 10-15 seconds
 
-### Step 2: Test It Out
-1. Go to https://www.desmos.com/calculator
-2. Enter some equations, for example:
-   - `f(x) = x^2`
-   - `g(x) = {0<x<1: x, 1≤x≤2: x^2}`  (piecewise function)
-   - `v = (3, 4, 5)`  (vector)
-3. Click the extension icon (∑) in your Chrome toolbar
-4. The URL should auto-fill since you're on a Desmos page
-5. Click **"Transcribe Equations"**
-6. A new tab will open with your equations in proper mathematical notation!
+## Success = You See This:
+✅ Desmos tab opens  
+✅ Graphs appear  
+✅ Tab closes automatically  
+✅ Progress: "Processing 1 of X (0%)"  
+✅ Progress bar fills up  
+✅ Equations appear one by one  
+✅ "Copy All" and "Download" buttons  
 
-## Features You'll Love
+## Failure = You See This:
+❌ "No equations found"  
+❌ "Error communicating"  
+❌ Tab opens but nothing happens  
+❌ Progress stuck at 0%  
 
-### ✅ Piecewise Functions
-Desmos format:
+## If It Fails:
+Press **F12** → **Console** tab → Look for errors
+
+## Debug Commands:
+```javascript
+// In transcribe.html console:
+chrome.storage.local.get(null, d => console.log(d))
+
+// In Desmos tab console (before it closes):
+console.log(window.Calc)
+console.log(window.__DESMOS_READY__)
 ```
-f\left(x\right)=\left\{0<x<1:x,\ 1\le x\le2:x^{2}\right\}
-```
-Becomes:
-```
-f(x) = {
-    x when 0<x<1
-    x² when 1≤x≤2
-}
-```
 
-### ✅ Proper Vector Notation
-Desmos: `(3, 4, 5)`
-Output: `⟨3, 4, 5⟩`
+## Common Fixes:
+- **Reload extension**: Go to extensions page, click reload icon
+- **Clear storage**: `chrome.storage.local.clear()` in console
+- **Try different URL**: Use the test URL above
+- **Wait longer**: First extraction takes ~15 seconds
+- **Check background script**: Extensions → Service Worker → Console
 
-### ✅ Mathematical Symbols
-- `\le` → `≤`
-- `\ge` → `≥`
-- `\pi` → `π`
-- `\theta` → `θ`
-- And many more!
+## Files to Read:
+- `START-HERE.md` - Quick start guide
+- `FIXED.md` - Complete documentation
+- `TESTING.md` - Detailed testing protocol
+- `CHANGES.md` - Technical changes
+- `test-manual.html` - Manual testing page
 
-### ✅ Easy Copying
-- Copy individual equations with the "Copy" button
-- Copy all equations at once with "Copy All Equations"
-- Download as a text file
+---
 
-## Troubleshooting
-
-**Extension doesn't appear?**
-- Make sure Developer mode is enabled
-- Try refreshing the extensions page
-
-**No equations extracted?**
-- Make sure the Desmos page is fully loaded
-- Wait 2-3 seconds after the page loads before clicking transcribe
-- Refresh the Desmos page and try again
-
-**Some equations look wrong?**
-- Very complex LaTeX may need manual adjustment
-- Report issues for improvement!
-
-## Next Steps
-
-- Open `test-examples.html` in a browser to see more examples
-- Read the full `README.md` for technical details
-- Customize the code to fit your needs!
-
-## Need Help?
-
-Check the README.md file for more detailed information about:
-- How the extension works
-- Technical details
-- Contributing
-- Advanced usage
-
-Enjoy transcribing! 📐✨
+**Everything is ready! Install and test now! 🚀**
