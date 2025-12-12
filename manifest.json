@@ -12,12 +12,7 @@
     "https://www.desmos.com/*"
   ],
   "action": {
-    "default_popup": "popup.html",
-    "default_icon": {
-      "16": "icon16.png",
-      "48": "icon48.png",
-      "128": "icon128.png"
-    }
+    "default_title": "Transcribe Desmos Equations"
   },
   "icons": {
     "16": "icon16.png",
@@ -28,6 +23,16 @@
     {
       "resources": ["transcribe.html", "transcribe.js", "styles.css"],
       "matches": ["<all_urls>"]
+    }
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://www.desmos.com/calculator/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
     }
   ]
 }

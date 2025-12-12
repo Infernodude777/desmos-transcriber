@@ -166,6 +166,28 @@ button {
   color: #7f8c8d;
 }
 
+.empty-state.error-state {
+  color: #e74c3c;
+}
+
+.empty-state.error-state code {
+  background: #fee;
+  color: #c0392b;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.empty-state.error-state ul {
+  margin: 20px auto;
+  padding-left: 20px;
+}
+
+.empty-state.error-state li {
+  margin: 8px 0;
+  color: #555;
+}
+
 .empty-state h2 {
   font-size: 24px;
   margin-bottom: 10px;

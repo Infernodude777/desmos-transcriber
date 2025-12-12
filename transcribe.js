@@ -7,14 +7,40 @@ document.addEventListener('DOMContentLoaded', async function() {
   
   try {
     // Get stored equation data
-    const data = await chrome.storage.local.get(['equations', 'sourceUrl']);
+    const data = await chrome.storage.local.get(['equations', 'sourceUrl', 'error']);
+    
+    // Check if there was an error during extraction
+    if (data.error) {
+      container.innerHTML = `
+        <div class="empty-state error-state">
+          <h2>⚠️ Error</h2>
+          <p>${data.error}</p>
+          <br>
+          <p><strong>Tips:</strong></p>
+          <ul style="text-align: left; display: inline-block;">
+            <li>Make sure you're on a Desmos calculator page</li>
+            <li>Wait for the page to fully load before clicking the extension</li>
+            <li>Try refreshing the Desmos page</li>
+            <li>Check the browser console for more details</li>
+          </ul>
+          <br><br>
+          <p>Source URL: <code>${data.sourceUrl || 'Unknown'}</code></p>
+        </div>
+      `;
+      
+      // Clear the error for next time
+      chrome.storage.local.remove(['error']);
+      return;
+    }
     
     if (!data.equations || data.equations.length === 0) {
       showEmptyState();
       return;
     }
     
-    sourceUrl.textContent = `Source: ${data.sourceUrl}`;
+    sourceUrl.textContent = `Source: ${data.sourceUrl || 'Unknown'}`;
+    
+    console.log('Processing equations:', data.equations);
     
     // Process and display equations
     const transcribedEquations = processEquations(data.equations);
@@ -40,38 +66,54 @@ document.addEventListener('DOMContentLoaded', async function() {
     
   } catch (error) {
     console.error('Error loading equations:', error);
-    container.innerHTML = `<div class="empty-state"><h2>Error</h2><p>${error.message}</p></div>`;
+    container.innerHTML = `
+      <div class="empty-state error-state">
+        <h2>Error</h2>
+        <p>${error.message}</p>
+        <br>
+        <p>Check the browser console for more details.</p>
+      </div>
+    `;
   }
 });
 
 function processEquations(equations) {
   const processed = [];
-  let currentFolder = null;
+  const folderMap = new Map(); // Track folders by ID
   
+  // First pass - identify all folders
   equations.forEach(eq => {
     if (eq.type === 'folder') {
-      currentFolder = eq.id;
+      folderMap.set(eq.id, eq);
+    }
+  });
+  
+  console.log('Found folders:', folderMap);
+  
+  // Second pass - process all equations
+  equations.forEach(eq => {
+    if (eq.type === 'folder') {
       processed.push({
         type: 'folder',
         text: `📁 ${eq.title}`,
         raw: eq
       });
-    } else {
+    } else if (eq.latex) {
       const transcribed = transcribeLatex(eq.latex);
+      const inFolder = eq.folderId && folderMap.has(eq.folderId);
+      
+      console.log('Processing equation:', eq.latex, '-> inFolder:', inFolder, 'folderId:', eq.folderId);
+      
       processed.push({
         type: 'equation',
         text: transcribed,
         raw: eq,
-        inFolder: currentFolder && eq.folderId === currentFolder
+        inFolder: inFolder
       });
-      
-      // Reset folder if this equation is not in the current folder
-      if (!eq.folderId && currentFolder) {
-        currentFolder = null;
-      }
     }
   });
   
+  console.log('Processed equations:', processed);
   return processed;
 }
 
