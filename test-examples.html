@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Desmos Transcriber - Test Page</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      max-width: 900px;
+      margin: 40px auto;
+      padding: 20px;
+      background: #f5f7fa;
+    }
+    
+    h1 {
+      color: #667eea;
+      text-align: center;
+    }
+    
+    .test-section {
+      background: white;
+      padding: 20px;
+      margin: 20px 0;
+      border-radius: 10px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    
+    .test-item {
+      margin: 15px 0;
+      padding: 15px;
+      background: #f8f9fa;
+      border-left: 4px solid #667eea;
+      border-radius: 5px;
+    }
+    
+    .label {
+      font-weight: bold;
+      color: #667eea;
+      margin-bottom: 5px;
+    }
+    
+    .input {
+      color: #e74c3c;
+      font-family: 'Courier New', monospace;
+      margin: 5px 0;
+    }
+    
+    .output {
+      color: #27ae60;
+      font-size: 18px;
+      margin: 5px 0;
+    }
+    
+    code {
+      background: #eee;
+      padding: 2px 6px;
+      border-radius: 3px;
+    }
+  </style>
+</head>
+<body>
+  <h1>📐 Desmos Transcriber - Test Examples</h1>
+  
+  <div class="test-section">
+    <h2>Piecewise Function Example</h2>
+    <div class="test-item">
+      <div class="label">Desmos Input:</div>
+      <div class="input"><code>f\left(x\right)=\left\{0&lt;x&lt;1:x,\ 1\le x\le2:x^{2}\right\}</code></div>
+      <div class="label">Expected Output:</div>
+      <div class="output">
+        <pre>f(x) = {
+    x when 0&lt;x&lt;1
+    x² when 1≤x≤2
+}</pre>
+      </div>
+    </div>
+  </div>
+  
+  <div class="test-section">
+    <h2>Vector Notation Example</h2>
+    <div class="test-item">
+      <div class="label">Desmos Input:</div>
+      <div class="input"><code>v=\left(3,4,5\right)</code></div>
+      <div class="label">Expected Output:</div>
+      <div class="output">v = ⟨3, 4, 5⟩</div>
+    </div>
+  </div>
+  
+  <div class="test-section">
+    <h2>Complex Expressions</h2>
+    
+    <div class="test-item">
+      <div class="label">Fraction:</div>
+      <div class="input"><code>\frac{x^{2}+1}{x-1}</code></div>
+      <div class="label">Output:</div>
+      <div class="output">(x^(2)+1)/(x-1)</div>
+    </div>
+    
+    <div class="test-item">
+      <div class="label">Square Root:</div>
+      <div class="input"><code>\sqrt{x^{2}+y^{2}}</code></div>
+      <div class="label">Output:</div>
+      <div class="output">√(x^(2)+y^(2))</div>
+    </div>
+    
+    <div class="test-item">
+      <div class="label">Greek Letters:</div>
+      <div class="input"><code>\theta=\frac{\pi}{4}</code></div>
+      <div class="label">Output:</div>
+      <div class="output">θ = π/4</div>
+    </div>
+    
+    <div class="test-item">
+      <div class="label">Inequalities:</div>
+      <div class="input"><code>x\le5\ \text{and}\ x\ge-3</code></div>
+      <div class="label">Output:</div>
+      <div class="output">x ≤ 5 and x ≥ -3</div>
+    </div>
+  </div>
+  
+  <div class="test-section">
+    <h2>How to Test the Extension</h2>
+    <ol>
+      <li>Load the extension in Chrome (<code>chrome://extensions/</code>)</li>
+      <li>Go to <a href="https://www.desmos.com/calculator" target="_blank">Desmos Calculator</a></li>
+      <li>Create some equations (try the examples above)</li>
+      <li>Click the extension icon</li>
+      <li>Click "Transcribe Equations"</li>
+      <li>Check that the output matches the expected format</li>
+    </ol>
+  </div>
+  
+  <div class="test-section">
+    <h2>Installation Instructions</h2>
+    <ol>
+      <li>Open Chrome and navigate to <code>chrome://extensions/</code></li>
+      <li>Enable "Developer mode" (toggle in top right)</li>
+      <li>Click "Load unpacked"</li>
+      <li>Select the <code>desmos-transcriber</code> folder</li>
+      <li>The extension icon (∑) should appear in your toolbar</li>
+    </ol>
+  </div>
+  
+</body>
+</html>

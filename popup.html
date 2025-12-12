@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Desmos Transcriber</title>
+  <style>
+    body {
+      width: 350px;
+      padding: 20px;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      margin: 0;
+    }
+    
+    h1 {
+      font-size: 20px;
+      margin: 0 0 15px 0;
+      text-align: center;
+    }
+    
+    .input-group {
+      margin-bottom: 15px;
+    }
+    
+    label {
+      display: block;
+      margin-bottom: 5px;
+      font-size: 14px;
+      font-weight: 500;
+    }
+    
+    input {
+      width: 100%;
+      padding: 10px;
+      border: none;
+      border-radius: 5px;
+      font-size: 14px;
+      box-sizing: border-box;
+    }
+    
+    button {
+      width: 100%;
+      padding: 12px;
+      background: white;
+      color: #667eea;
+      border: none;
+      border-radius: 5px;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+    
+    button:hover {
+      background: #f0f0f0;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    }
+    
+    button:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+      transform: none;
+    }
+    
+    .status {
+      margin-top: 10px;
+      text-align: center;
+      font-size: 13px;
+      min-height: 20px;
+    }
+    
+    .error {
+      color: #ffcccc;
+    }
+    
+    .success {
+      color: #ccffcc;
+    }
+  </style>
+</head>
+<body>
+  <h1>🔢 Desmos Transcriber</h1>
+  
+  <div class="input-group">
+    <label for="desmosUrl">Desmos Calculator URL:</label>
+    <input 
+      type="text" 
+      id="desmosUrl" 
+      placeholder="https://www.desmos.com/calculator/..."
+    >
+  </div>
+  
+  <button id="transcribeBtn">Transcribe Equations</button>
+  
+  <div class="status" id="status"></div>
+  
+  <script src="popup.js"></script>
+</body>
+</html>

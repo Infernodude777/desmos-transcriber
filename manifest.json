@@ -1,0 +1,33 @@
+{
+  "manifest_version": 3,
+  "name": "Desmos Transcriber",
+  "version": "1.0.0",
+  "description": "Transcribe Desmos equations into proper mathematical notation",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage"
+  ],
+  "host_permissions": [
+    "https://www.desmos.com/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icon16.png",
+      "48": "icon48.png",
+      "128": "icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icon16.png",
+    "48": "icon48.png",
+    "128": "icon128.png"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["transcribe.html", "transcribe.js", "styles.css"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}
