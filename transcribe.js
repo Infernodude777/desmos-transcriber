@@ -1,445 +1,354 @@
-// Listen for storage changes
-chrome.storage.onChanged.addListener((changes, namespace) => {
-  if (namespace === 'local' && (changes.equations || changes.error)) {
-    console.log('📦 Storage changed, reloading page...');
-    // Small delay to ensure storage write completed
-    setTimeout(() => {
-      window.location.reload();
-    }, 200);
-  }
-});
+// Desmos Transcriber - Embedded Calculator Version
+// Initialize Desmos calculator
+let calculator = null;
 
-// Load and display equations
-document.addEventListener('DOMContentLoaded', async function() {
-  const container = document.getElementById('equationsContainer');
-  const sourceUrl = document.getElementById('sourceUrl');
+document.addEventListener('DOMContentLoaded', () => {
+  const calculatorContainer = document.getElementById('calculatorContainer');
+  const urlInput = document.getElementById('desmosUrlInput');
+  const loadBtn = document.getElementById('loadBtn');
+  const clearBtn = document.getElementById('clearBtn');
+  const transcribeBtn = document.getElementById('transcribeBtn');
+  const status = document.getElementById('status');
+  const controls = document.getElementById('controls');
+  const equationsContainer = document.getElementById('equationsContainer');
   const copyAllBtn = document.getElementById('copyAllBtn');
   const downloadBtn = document.getElementById('downloadBtn');
-  const newExtractionBtn = document.getElementById('newExtractionBtn');
-  const urlInputSection = document.getElementById('urlInputSection');
-  const urlInput = document.getElementById('desmosUrlInput');
-  const extractBtn = document.getElementById('extractBtn');
-  const controls = document.getElementById('controls');
   
-  // Handle new extraction button
-  newExtractionBtn.addEventListener('click', () => {
-    chrome.storage.local.remove(['equations', 'sourceUrl', 'error']);
-    location.reload();
+  // Initialize Desmos Calculator
+  console.log('Initializing Desmos calculator...');
+  calculator = Desmos.GraphingCalculator(calculatorContainer, {
+    expressionsCollapsed: false,
+    settingsMenu: false,
+    zoomButtons: true,
+    expressions: true,
+    keypad: true,
+    graphpaper: true,
+    showResetButtonOnGraphpaper: true
   });
   
-  // Handle extract button
-  extractBtn.addEventListener('click', async () => {
+  console.log('✅ Calculator initialized');
+  
+  // Load graph from URL
+  loadBtn.addEventListener('click', async () => {
     const url = urlInput.value.trim();
     
     if (!url) {
-      showError('Please enter a Desmos URL');
+      showStatus('Please enter a URL', 'error');
       return;
     }
     
     if (!url.includes('desmos.com/calculator')) {
-      showError('Invalid Desmos calculator URL');
+      showStatus('Invalid Desmos calculator URL', 'error');
       return;
     }
     
-    urlInputSection.style.display = 'none';
-    container.innerHTML = '<div class="loading">Opening Desmos page and extracting equations...</div>';
+    // Extract graph ID from URL
+    const match = url.match(/calculator\/([a-zA-Z0-9]+)/);
+    if (!match) {
+      showStatus('Could not extract graph ID from URL', 'error');
+      return;
+    }
+    
+    const graphId = match[1];
+    showStatus('Loading graph...', 'info');
     
     try {
-      // Send message to background script to extract from URL
-      chrome.runtime.sendMessage({
-        action: 'extractFromUrl',
-        url: url
-      }, async (response) => {
-        if (chrome.runtime.lastError) {
-          showError('Error communicating with extension: ' + chrome.runtime.lastError.message);
-          urlInputSection.style.display = 'block';
-        } else if (response && response.success) {
-          // Wait a moment for storage to be updated
-          await new Promise(resolve => setTimeout(resolve, 500));
-          // Start progressive transcription
-          startProgressiveTranscription();
-        } else {
-          showError(response?.error || 'Unknown error occurred');
-          urlInputSection.style.display = 'block';
-        }
-      });
+      // Fetch the graph state from Desmos API
+      const response = await fetch(`https://www.desmos.com/calculator/${graphId}`);
+      const html = await response.text();
+      
+      // Extract state from the HTML (it's embedded in a script tag)
+      const stateMatch = html.match(/Calc\.setState\((\{.+?\})\);?/s);
+      
+      if (stateMatch) {
+        const state = JSON.parse(stateMatch[1]);
+        calculator.setState(state);
+        showStatus('✅ Graph loaded successfully!', 'success');
+        console.log('Loaded graph:', graphId);
+      } else {
+        showStatus('Could not load graph from URL', 'error');
+      }
     } catch (error) {
-      showError('Error: ' + error.message);
-      urlInputSection.style.display = 'block';
+      console.error('Error loading graph:', error);
+      showStatus('Error loading graph: ' + error.message, 'error');
     }
   });
   
-  try {
-    // Get stored equation data
-    const data = await chrome.storage.local.get(['equations', 'sourceUrl', 'error', 'debugLog']);
+  // Clear calculator
+  clearBtn.addEventListener('click', () => {
+    calculator.setBlank();
+    equationsContainer.innerHTML = '';
+    controls.style.display = 'none';
+    showStatus('Calculator cleared', 'info');
+  });
+  
+  // Transcribe equations
+  transcribeBtn.addEventListener('click', () => {
+    showStatus('Extracting equations...', 'info');
     
-    // Show debug log if available
-    if (data.debugLog) {
-      const debugPanel = document.getElementById('debugPanel');
-      const debugLog = document.getElementById('debugLog');
-      debugLog.textContent = data.debugLog;
-      debugPanel.style.display = 'block';
-    }
-    
-    // Check if there was an error during extraction
-    if (data.error) {
-      container.innerHTML = `
-        <div class="empty-state error-state">
-          <h2>⚠️ Error</h2>
-          <p>${data.error}</p>
-          <br>
-          <p><strong>Tips:</strong></p>
-          <ul style="text-align: left; display: inline-block;">
-            <li>Make sure the Desmos page is fully loaded (wait 3-5 seconds)</li>
-            <li>Try entering the URL below instead of clicking from the page</li>
-            <li>Refresh the Desmos page and try again</li>
-            <li>Check the browser console (F12) for more details</li>
-          </ul>
-        </div>
-      `;
+    try {
+      // Get current state from calculator
+      const state = calculator.getState();
       
-      urlInputSection.style.display = 'block';
-      if (data.sourceUrl) {
-        urlInput.value = data.sourceUrl;
+      if (!state || !state.expressions || !state.expressions.list) {
+        showStatus('No equations found', 'error');
+        return;
       }
       
-      // Clear the error for next time
-      chrome.storage.local.remove(['error']);
-      return;
+      const list = state.expressions.list;
+      console.log(`Found ${list.length} expressions`);
+      
+      if (list.length === 0) {
+        showStatus('No equations in calculator', 'error');
+        equationsContainer.innerHTML = '<div class=\"empty-state\">The calculator is empty. Add some equations first!</div>';
+        return;
+      }
+      
+      // Process equations
+      const equations = [];
+      list.forEach((expr, i) => {
+        if (expr.type === 'folder') {
+          equations.push({
+            type: 'folder',
+            title: expr.title || 'Folder',
+            id: expr.id
+          });
+        } else if (expr.latex) {
+          equations.push({
+            type: 'equation',
+            latex: expr.latex,
+            color: expr.color || '#000000',
+            folderId: expr.folderId || null
+          });
+        }
+      });
+      
+      // Display transcribed equations
+      displayEquations(equations);
+      showStatus(`✅ Transcribed ${equations.length} items`, 'success');
+      controls.style.display = 'flex';
+      
+    } catch (error) {
+      console.error('Error transcribing:', error);
+      showStatus('Error: ' + error.message, 'error');
     }
-    
-    if (!data.equations || data.equations.length === 0) {
-      // Show input form
-      urlInputSection.style.display = 'block';
-      container.innerHTML = '<div class="empty-state"><p>Enter a Desmos calculator URL above to extract equations</p></div>';
-      return;
-    }
-    
-    // We have equations! Show them
-    sourceUrl.textContent = `Source: ${data.sourceUrl || 'Unknown'}`;
-    controls.style.display = 'flex';
-    
-    console.log('Processing equations:', data.equations);
-    
-    // Process and display equations
-    const transcribedEquations = processEquations(data.equations);
-    displayEquations(transcribedEquations);
-    
-    // Set up copy all button
-    copyAllBtn.addEventListener('click', () => {
-      const allText = transcribedEquations
-        .map(eq => eq.text)
-        .join('\n\n');
-      copyToClipboard(allText);
-      showNotification('All equations copied!');
-    });
-    
-    // Set up download button
-    downloadBtn.addEventListener('click', () => {
-      const allText = transcribedEquations
-        .map(eq => eq.text)
-        .join('\n\n');
-      downloadAsText(allText, 'desmos-equations.txt');
-      showNotification('Downloaded!');
-    });
-    
-  } catch (error) {
-    console.error('Error loading equations:', error);
-    container.innerHTML = `
-      <div class="empty-state error-state">
-        <h2>Error</h2>
-        <p>${error.message}</p>
-        <br>
-        <p>Check the browser console for more details.</p>
-      </div>
-    `;
-    urlInputSection.style.display = 'block';
-  }
+  });
+  
+  // Copy all equations
+  copyAllBtn.addEventListener('click', () => {
+    const text = equationsContainer.innerText;
+    copyToClipboard(text);
+    showStatus('✅ Copied to clipboard!', 'success');
+  });
+  
+  // Download equations
+  downloadBtn.addEventListener('click', () => {
+    const text = equationsContainer.innerText;
+    downloadAsText(text, 'desmos-equations.txt');
+    showStatus('✅ Downloaded!', 'success');
+  });
 });
 
-function showError(message) {
+// Display transcribed equations
+function displayEquations(equations) {
   const container = document.getElementById('equationsContainer');
-  container.innerHTML = `
-    <div class="empty-state error-state">
-      <h2>⚠️ Error</h2>
-      <p>${message}</p>
-    </div>
-  `;
-}
-
-function processEquations(equations) {
-  const processed = [];
-  const folderMap = new Map(); // Track folders by ID
+  container.innerHTML = '';
   
-  // First pass - identify all folders
+  const folderMap = new Map();
   equations.forEach(eq => {
     if (eq.type === 'folder') {
       folderMap.set(eq.id, eq);
     }
   });
   
-  console.log('Found folders:', folderMap);
-  
-  // Second pass - process all equations
   equations.forEach(eq => {
     if (eq.type === 'folder') {
-      processed.push({
-        type: 'folder',
-        text: `📁 ${eq.title}`,
-        raw: eq
-      });
-    } else if (eq.latex) {
+      const folderDiv = document.createElement('div');
+      folderDiv.className = 'equation-folder';
+      folderDiv.textContent = `📁 ${eq.title}`;
+      container.appendChild(folderDiv);
+    } else if (eq.type === 'equation') {
       const transcribed = transcribeLatex(eq.latex);
       const inFolder = eq.folderId && folderMap.has(eq.folderId);
       
-      console.log('Processing equation:', eq.latex, '-> inFolder:', inFolder, 'folderId:', eq.folderId);
+      const div = document.createElement('div');
+      div.className = inFolder ? 'equation-item in-folder' : 'equation-item';
       
-      processed.push({
-        type: 'equation',
-        text: transcribed,
-        raw: eq,
-        inFolder: inFolder
-      });
+      const textDiv = document.createElement('div');
+      textDiv.className = 'equation-text';
+      textDiv.textContent = transcribed;
+      
+      const copyBtn = document.createElement('button');
+      copyBtn.className = 'copy-btn';
+      copyBtn.textContent = '📋';
+      copyBtn.onclick = () => {
+        copyToClipboard(transcribed);
+        showStatus('Copied!', 'success');
+      };
+      
+      div.appendChild(textDiv);
+      div.appendChild(copyBtn);
+      container.appendChild(div);
     }
   });
-  
-  console.log('Processed equations:', processed);
-  return processed;
 }
 
+// Transcribe LaTeX to Unicode
 function transcribeLatex(latex) {
-  if (!latex) return '';
-  
   let result = latex;
   
-  // Handle piecewise functions
-  // Format: f\left(x\right)=\left\{condition:value,condition:value\right\}
-  result = result.replace(
-    /([^=]+)=\\left\\{([^}]+)\\right\\}/g,
-    (match, funcPart, piecewise) => {
-      // Clean up the function part
-      funcPart = cleanLatex(funcPart);
-      
-      // Split the piecewise conditions
-      const pieces = piecewise.split(',').map(p => p.trim());
-      const formattedPieces = pieces.map(piece => {
-        const [condition, value] = piece.split(':').map(p => cleanLatex(p.trim()));
-        return `    ${value} when ${condition}`;
-      });
-      
-      return `${funcPart} = {\n${formattedPieces.join('\n')}\n}`;
-    }
-  );
+  // Remove extra whitespace
+  result = result.replace(/\s+/g, ' ');
   
-  // Handle vectors - replace parentheses with angle brackets for vectors
-  // Pattern: \left(a,b,c\right) or similar
-  result = result.replace(
-    /\\left\(([^)]+)\)\\right\)/g,
-    (match, content) => {
-      // Check if it looks like a vector (has commas)
-      if (content.includes(',')) {
-        const components = content.split(',').map(c => cleanLatex(c.trim()));
-        return `⟨${components.join(', ')}⟩`;
-      }
-      return `(${cleanLatex(content)})`;
-    }
-  );
+  // Greek letters
+  const greekMap = {
+    '\\alpha': 'α', '\\beta': 'β', '\\gamma': 'γ', '\\delta': 'δ',
+    '\\epsilon': 'ε', '\\zeta': 'ζ', '\\eta': 'η', '\\theta': 'θ',
+    '\\iota': 'ι', '\\kappa': 'κ', '\\lambda': 'λ', '\\mu': 'μ',
+    '\\nu': 'ν', '\\xi': 'ξ', '\\pi': 'π', '\\rho': 'ρ',
+    '\\sigma': 'σ', '\\tau': 'τ', '\\upsilon': 'υ', '\\phi': 'φ',
+    '\\chi': 'χ', '\\psi': 'ψ', '\\omega': 'ω',
+    '\\Gamma': 'Γ', '\\Delta': 'Δ', '\\Theta': 'Θ', '\\Lambda': 'Λ',
+    '\\Xi': 'Ξ', '\\Pi': 'Π', '\\Sigma': 'Σ', '\\Phi': 'Φ',
+    '\\Psi': 'Ψ', '\\Omega': 'Ω'
+  };
   
-  // Clean up remaining LaTeX
-  result = cleanLatex(result);
+  for (const [latex, unicode] of Object.entries(greekMap)) {
+    result = result.replace(new RegExp(latex.replace(/\\/g, '\\\\'), 'g'), unicode);
+  }
   
-  return result;
-}
-
-function cleanLatex(latex) {
-  let result = latex;
+  // Mathematical operators and symbols
+  result = result.replace(/\\le(?:q)?/g, '≤');
+  result = result.replace(/\\ge(?:q)?/g, '≥');
+  result = result.replace(/\\ne(?:q)?/g, '≠');
+  result = result.replace(/\\approx/g, '≈');
+  result = result.replace(/\\infty/g, '∞');
+  result = result.replace(/\\pm/g, '±');
+  result = result.replace(/\\times/g, '×');
+  result = result.replace(/\\div/g, '÷');
+  result = result.replace(/\\cdot/g, '·');
+  
+  // Calculus
+  result = result.replace(/\\int/g, '∫');
+  result = result.replace(/\\sum/g, '∑');
+  result = result.replace(/\\prod/g, '∏');
+  result = result.replace(/\\partial/g, '∂');
+  result = result.replace(/\\nabla/g, '∇');
+  
+  // Superscripts
+  result = result.replace(/\^{([^}]+)}/g, (match, content) => {
+    return toSuperscript(content);
+  });
+  
+  // Subscripts
+  result = result.replace(/_{([^}]+)}/g, (match, content) => {
+    return toSubscript(content);
+  });
+  
+  // Fractions
+  result = result.replace(/\\frac{([^}]+)}{([^}]+)}/g, '($1/$2)');
+  
+  // Square root
+  result = result.replace(/\\sqrt{([^}]+)}/g, '√($1)');
+  result = result.replace(/\\sqrt\[([^\]]+)\]{([^}]+)}/g, '$1√($2)');
+  
+  // Trig functions
+  result = result.replace(/\\sin/g, 'sin');
+  result = result.replace(/\\cos/g, 'cos');
+  result = result.replace(/\\tan/g, 'tan');
+  result = result.replace(/\\csc/g, 'csc');
+  result = result.replace(/\\sec/g, 'sec');
+  result = result.replace(/\\cot/g, 'cot');
   
   // Remove \left and \right
   result = result.replace(/\\left|\\right/g, '');
   
-  // Replace common LaTeX commands
-  result = result.replace(/\\cdot/g, '·');
-  result = result.replace(/\\times/g, '×');
-  result = result.replace(/\\div/g, '÷');
-  result = result.replace(/\\pm/g, '±');
-  result = result.replace(/\\le/g, '≤');
-  result = result.replace(/\\ge/g, '≥');
-  result = result.replace(/\\ne/g, '≠');
-  result = result.replace(/\\approx/g, '≈');
-  result = result.replace(/\\infty/g, '∞');
-  result = result.replace(/\\pi/g, 'π');
-  result = result.replace(/\\theta/g, 'θ');
-  result = result.replace(/\\alpha/g, 'α');
-  result = result.replace(/\\beta/g, 'β');
-  result = result.replace(/\\gamma/g, 'γ');
-  result = result.replace(/\\delta/g, 'δ');
-  result = result.replace(/\\epsilon/g, 'ε');
-  result = result.replace(/\\lambda/g, 'λ');
-  result = result.replace(/\\mu/g, 'μ');
-  result = result.replace(/\\sigma/g, 'σ');
-  result = result.replace(/\\Sigma/g, 'Σ');
-  result = result.replace(/\\omega/g, 'ω');
-  result = result.replace(/\\Omega/g, 'Ω');
+  // Clean up parentheses and brackets
+  result = result.replace(/\\[()\[\]{}]/g, match => match.slice(1));
   
-  // Handle fractions \frac{a}{b} -> a/b or (a)/(b) for complex expressions
-  result = result.replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, (match, num, den) => {
-    const numerator = cleanLatex(num);
-    const denominator = cleanLatex(den);
-    
-    // Use parentheses if expressions are complex
-    if (num.length > 3 || den.length > 3) {
-      return `(${numerator})/(${denominator})`;
+  // Piecewise functions
+  if (result.includes('{') && result.includes(':')) {
+    result = formatPiecewise(result);
+  }
+  
+  // Vectors - convert (a,b,c) to ⟨a,b,c⟩ when it's clearly a vector
+  result = result.replace(/\(([^)]+,[^)]+)\)/g, '⟨$1⟩');
+  
+  return result.trim();
+}
+
+// Format piecewise functions
+function formatPiecewise(latex) {
+  const match = latex.match(/\{(.+)\}/);
+  if (!match) return latex;
+  
+  const content = match[1];
+  const pieces = content.split(',').map(p => p.trim());
+  
+  if (pieces.length === 0) return latex;
+  
+  let result = 'f(x) = {\n';
+  pieces.forEach(piece => {
+    const parts = piece.split(':');
+    if (parts.length === 2) {
+      const condition = parts[0].trim();
+      const value = parts[1].trim();
+      result += `  ${transcribeLatex(value)}  when ${transcribeLatex(condition)}\n`;
     }
-    return `${numerator}/${denominator}`;
   });
-  
-  // Handle square roots \sqrt{x} -> √(x)
-  result = result.replace(/\\sqrt\{([^}]+)\}/g, (match, content) => {
-    return `√(${cleanLatex(content)})`;
-  });
-  
-  // Handle nth roots \sqrt[n]{x} -> ⁿ√(x)
-  result = result.replace(/\\sqrt\[([^\]]+)\]\{([^}]+)\}/g, (match, n, content) => {
-    return `${superscript(n)}√(${cleanLatex(content)})`;
-  });
-  
-  // Handle superscripts ^{x} -> use Unicode superscripts where possible
-  result = result.replace(/\^\\?\{([^}]+)\}/g, (match, exp) => {
-    return `^(${cleanLatex(exp)})`;
-  });
-  
-  // Handle simple superscripts ^x
-  result = result.replace(/\^([a-zA-Z0-9])/g, (match, exp) => {
-    const sup = superscript(exp);
-    return sup !== exp ? sup : `^${exp}`;
-  });
-  
-  // Handle subscripts _{x}
-  result = result.replace(/_\\?\{([^}]+)\}/g, (match, sub) => {
-    return `_(${cleanLatex(sub)})`;
-  });
-  
-  // Handle simple subscripts _x
-  result = result.replace(/_([a-zA-Z0-9])/g, (match, sub) => {
-    const subscr = subscript(sub);
-    return subscr !== sub ? subscr : `_${sub}`;
-  });
-  
-  // Handle absolute value |x|
-  result = result.replace(/\\left\|([^|]+)\\right\|/g, '|$1|');
-  
-  // Handle integrals
-  result = result.replace(/\\int/g, '∫');
-  result = result.replace(/\\sum/g, '∑');
-  result = result.replace(/\\prod/g, '∏');
-  
-  // Handle limits
-  result = result.replace(/\\lim/g, 'lim');
-  
-  // Handle trigonometric functions
-  result = result.replace(/\\sin/g, 'sin');
-  result = result.replace(/\\cos/g, 'cos');
-  result = result.replace(/\\tan/g, 'tan');
-  result = result.replace(/\\sec/g, 'sec');
-  result = result.replace(/\\csc/g, 'csc');
-  result = result.replace(/\\cot/g, 'cot');
-  
-  // Handle logarithms
-  result = result.replace(/\\log/g, 'log');
-  result = result.replace(/\\ln/g, 'ln');
-  
-  // Clean up extra backslashes and braces
-  result = result.replace(/\\/g, '');
-  result = result.replace(/[{}]/g, '');
-  
-  // Clean up extra spaces
-  result = result.replace(/\s+/g, ' ').trim();
+  result += '}';
   
   return result;
 }
 
-function superscript(text) {
-  const superscripts = {
+// Convert to superscript
+function toSuperscript(text) {
+  const map = {
     '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴',
     '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹',
     '+': '⁺', '-': '⁻', '=': '⁼', '(': '⁽', ')': '⁾',
-    'n': 'ⁿ'
+    'n': 'ⁿ', 'i': 'ⁱ'
   };
-  return text.split('').map(c => superscripts[c] || c).join('');
+  
+  return text.split('').map(char => map[char] || char).join('');
 }
 
-function subscript(text) {
-  const subscripts = {
+// Convert to subscript
+function toSubscript(text) {
+  const map = {
     '0': '₀', '1': '₁', '2': '₂', '3': '₃', '4': '₄',
     '5': '₅', '6': '₆', '7': '₇', '8': '₈', '9': '₉',
     '+': '₊', '-': '₋', '=': '₌', '(': '₍', ')': '₎'
   };
-  return text.split('').map(c => subscripts[c] || c).join('');
-}
-
-function displayEquations(equations) {
-  const container = document.getElementById('equationsContainer');
-  container.innerHTML = '';
   
-  equations.forEach((eq, index) => {
-    const div = document.createElement('div');
-    div.className = 'equation-item';
-    
-    if (eq.type === 'folder') {
-      div.classList.add('folder');
-      div.innerHTML = `<div class="equation-text">${eq.text}</div>`;
-    } else {
-      if (eq.inFolder) {
-        div.classList.add('in-folder');
-      }
-      
-      const contentDiv = document.createElement('div');
-      contentDiv.className = 'equation-content';
-      
-      const textDiv = document.createElement('div');
-      textDiv.className = 'equation-text';
-      textDiv.textContent = eq.text;
-      
-      const copyBtn = document.createElement('button');
-      copyBtn.className = 'copy-btn';
-      copyBtn.textContent = 'Copy';
-      copyBtn.onclick = () => {
-        copyToClipboard(eq.text);
-        copyBtn.textContent = 'Copied!';
-        copyBtn.classList.add('copied');
-        setTimeout(() => {
-          copyBtn.textContent = 'Copy';
-          copyBtn.classList.remove('copied');
-        }, 2000);
-      };
-      
-      contentDiv.appendChild(textDiv);
-      contentDiv.appendChild(copyBtn);
-      div.appendChild(contentDiv);
-    }
-    
-    container.appendChild(div);
-  });
+  return text.split('').map(char => map[char] || char).join('');
 }
 
-function showEmptyState() {
-  const container = document.getElementById('equationsContainer');
-  container.innerHTML = `
-    <div class="empty-state">
-      <h2>No Equations Found</h2>
-      <p>Please make sure the Desmos calculator has some equations.</p>
-    </div>
-  `;
+// Show status message
+function showStatus(message, type = 'info') {
+  const status = document.getElementById('status');
+  status.textContent = message;
+  status.className = `status-text ${type}`;
+  
+  if (type === 'success' || type === 'error') {
+    setTimeout(() => {
+      status.textContent = '';
+    }, 3000);
+  }
 }
 
+// Copy to clipboard
 function copyToClipboard(text) {
-  navigator.clipboard.writeText(text).catch(err => {
+  navigator.clipboard.writeText(text).then(() => {
+    console.log('Copied to clipboard');
+  }).catch(err => {
     console.error('Failed to copy:', err);
   });
 }
 
-function downloadAsText(text, filename) {
-  const blob = new Blob([text], { type: 'text/plain' });
+// Download as text file
+function downloadAsText(content, filename) {
+  const blob = new Blob([content], { type: 'text/plain' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
@@ -448,159 +357,4 @@ function downloadAsText(text, filename) {
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
-}
-
-function showNotification(message) {
-  const notification = document.createElement('div');
-  notification.className = 'notification';
-  notification.textContent = message;
-  document.body.appendChild(notification);
-  
-  setTimeout(() => {
-    notification.classList.add('fade-out');
-    setTimeout(() => {
-      document.body.removeChild(notification);
-    }, 300);
-  }, 2000);
-}
-
-// Progressive transcription - process equations one by one with live updates
-async function startProgressiveTranscription() {
-  const container = document.getElementById('equationsContainer');
-  const progressSection = document.getElementById('progressSection');
-  const progressBar = document.getElementById('progressBar');
-  const progressText = document.getElementById('progressText');
-  const progressStatus = document.getElementById('progressStatus');
-  const controls = document.getElementById('controls');
-  const sourceUrl = document.getElementById('sourceUrl');
-  
-  try {
-    // Get the equations from storage
-    const data = await chrome.storage.local.get(['equations', 'sourceUrl', 'debugLog']);
-    
-    if (!data.equations || data.equations.length === 0) {
-      showError('No equations found to transcribe');
-      return;
-    }
-    
-    const equations = data.equations;
-    const totalCount = equations.length;
-    
-    // Show progress section
-    progressSection.style.display = 'block';
-    container.innerHTML = '';
-    sourceUrl.textContent = `Source: ${data.sourceUrl || 'Unknown'}`;
-    
-    // Process folders first for folder map
-    const folderMap = new Map();
-    equations.forEach(eq => {
-      if (eq.type === 'folder') {
-        folderMap.set(eq.id, eq);
-      }
-    });
-    
-    // Process each equation one by one
-    for (let i = 0; i < equations.length; i++) {
-      const eq = equations[i];
-      const progress = Math.round(((i + 1) / totalCount) * 100);
-      
-      // Update progress bar
-      progressBar.style.width = `${progress}%`;
-      progressText.textContent = `${progress}%`;
-      
-      // Update status message
-      if (eq.type === 'folder') {
-        progressStatus.textContent = `Processing folder "${eq.title}" (${i + 1}/${totalCount})`;
-      } else {
-        const previewText = eq.latex ? eq.latex.substring(0, 30) : 'equation';
-        progressStatus.textContent = `Transcribing equation ${i + 1}/${totalCount}: ${previewText}...`;
-      }
-      
-      // Create and display the transcribed item immediately
-      if (eq.type === 'folder') {
-        const folderDiv = document.createElement('div');
-        folderDiv.className = 'equation-folder';
-        
-        const contentDiv = document.createElement('div');
-        contentDiv.className = 'equation-content';
-        
-        const textDiv = document.createElement('div');
-        textDiv.className = 'equation-text';
-        textDiv.textContent = `📁 ${eq.title}`;
-        
-        contentDiv.appendChild(textDiv);
-        folderDiv.appendChild(contentDiv);
-        container.appendChild(folderDiv);
-      } else if (eq.latex) {
-        const transcribed = transcribeLatex(eq.latex);
-        const inFolder = eq.folderId && folderMap.has(eq.folderId);
-        
-        const div = document.createElement('div');
-        div.className = inFolder ? 'equation-item in-folder' : 'equation-item';
-        
-        const contentDiv = document.createElement('div');
-        contentDiv.className = 'equation-content';
-        
-        const textDiv = document.createElement('div');
-        textDiv.className = 'equation-text';
-        textDiv.textContent = transcribed;
-        
-        const copyBtn = document.createElement('button');
-        copyBtn.className = 'copy-btn';
-        copyBtn.textContent = '📋 Copy';
-        copyBtn.onclick = () => {
-          copyToClipboard(transcribed);
-          copyBtn.textContent = '✓ Copied!';
-          setTimeout(() => {
-            copyBtn.textContent = '📋 Copy';
-          }, 2000);
-        };
-        
-        contentDiv.appendChild(textDiv);
-        contentDiv.appendChild(copyBtn);
-        div.appendChild(contentDiv);
-        container.appendChild(div);
-      }
-      
-      // Small delay to show progress (like ChatGPT Bulk Delete does)
-      await new Promise(resolve => setTimeout(resolve, 50));
-    }
-    
-    // Hide progress, show controls
-    progressSection.style.display = 'none';
-    controls.style.display = 'flex';
-    
-    // Set up copy all button
-    const copyAllBtn = document.getElementById('copyAllBtn');
-    const downloadBtn = document.getElementById('downloadBtn');
-    
-    // Process all equations for copy/download
-    const transcribedEquations = equations.map(eq => {
-      if (eq.type === 'folder') {
-        return `📁 ${eq.title}`;
-      } else if (eq.latex) {
-        return transcribeLatex(eq.latex);
-      }
-      return '';
-    }).filter(t => t);
-    
-    copyAllBtn.onclick = () => {
-      const allText = transcribedEquations.join('\n\n');
-      copyToClipboard(allText);
-      showNotification('All equations copied!');
-    };
-    
-    downloadBtn.onclick = () => {
-      const allText = transcribedEquations.join('\n\n');
-      downloadAsText(allText, 'desmos-equations.txt');
-      showNotification('Downloaded!');
-    };
-    
-    showNotification(`✓ Transcribed ${totalCount} items successfully!`);
-    
-  } catch (error) {
-    console.error('Error in progressive transcription:', error);
-    progressSection.style.display = 'none';
-    showError('Error during transcription: ' + error.message);
-  }
 }

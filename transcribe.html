@@ -3,54 +3,33 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Transcribed Equations - Desmos Transcriber</title>
+  <title>Desmos Transcriber</title>
   <link rel="stylesheet" href="styles.css">
+  <script src="https://www.desmos.com/api/v1.9/calculator.js?apiKey=dcb31709b452b1cf9dc26972add0fda6"></script>
 </head>
 <body>
   <div class="container">
-    <header>
-      <h1>📐 Transcribed Equations</h1>
-      <p class="source-url" id="sourceUrl"></p>
-    </header>
+    <h1>📐 Desmos Transcriber</h1>
     
-    <div class="url-input-section" id="urlInputSection" style="display: none;">
-      <div class="input-group">
-        <label for="desmosUrlInput">Enter Desmos Calculator URL:</label>
-        <input 
-          type="text" 
-          id="desmosUrlInput" 
-          placeholder="https://www.desmos.com/calculator/..."
-          class="url-input"
-        >
-        <button id="extractBtn" class="btn-primary">Extract Equations</button>
-      </div>
-      <p class="hint">Or click the extension icon (∑) while on a Desmos calculator page</p>
+    <div class="url-input-section">
+      <input type="text" id="desmosUrlInput" placeholder="Enter Desmos calculator URL to load..." />
+      <button id="loadBtn" class="action-btn">🔗 Load Graph</button>
+      <button id="clearBtn" class="action-btn secondary">🗑️ Clear</button>
     </div>
     
-    <div class="progress-section" id="progressSection" style="display: none;">
-      <h3>Transcribing Equations...</h3>
-      <div class="progress-bar-container">
-        <div class="progress-bar" id="progressBar">
-          <span class="progress-text" id="progressText">0%</span>
-        </div>
-      </div>
-      <p class="progress-status" id="progressStatus">Initializing...</p>
+    <div class="transcribe-section">
+      <button id="transcribeBtn" class="transcribe-btn">✨ Transcribe Equations</button>
+      <span id="status" class="status-text"></span>
     </div>
     
-    <div class="controls" id="controls" style="display: none;">
-      <button id="copyAllBtn" class="btn-primary">📋 Copy All Equations</button>
-      <button id="downloadBtn" class="btn-secondary">💾 Download as Text</button>
-      <button id="newExtractionBtn" class="btn-tertiary">🔄 Extract Another</button>
+    <div id="calculatorContainer" class="calculator-container"></div>
+    
+    <div id="controls" class="controls" style="display: none;">
+      <button id="copyAllBtn" class="action-btn">📋 Copy All</button>
+      <button id="downloadBtn" class="action-btn">💾 Download</button>
     </div>
     
-    <div class="equations-container" id="equationsContainer">
-      <div class="loading">Checking for equations...</div>
-    </div>
-    
-    <div class="debug-panel" id="debugPanel" style="display: none;">
-      <h3>🔍 Debug Information</h3>
-      <pre id="debugLog"></pre>
-    </div>
+    <div id="equationsContainer" class="equations-container"></div>
   </div>
   
   <script src="transcribe.js"></script>
