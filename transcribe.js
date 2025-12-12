@@ -38,12 +38,14 @@ document.addEventListener('DOMContentLoaded', async function() {
       chrome.runtime.sendMessage({
         action: 'extractFromUrl',
         url: url
-      }, (response) => {
+      }, async (response) => {
         if (chrome.runtime.lastError) {
           showError('Error communicating with extension: ' + chrome.runtime.lastError.message);
           urlInputSection.style.display = 'block';
         } else if (response && response.success) {
-          // Start progressive transcription instead of reloading
+          // Wait a moment for storage to be updated
+          await new Promise(resolve => setTimeout(resolve, 500));
+          // Start progressive transcription
           startProgressiveTranscription();
         } else {
           showError(response?.error || 'Unknown error occurred');
