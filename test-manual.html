@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Manual Extraction Test</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 900px;
+      margin: 50px auto;
+      padding: 20px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+    }
+    .container {
+      background: rgba(255, 255, 255, 0.1);
+      padding: 30px;
+      border-radius: 12px;
+      backdrop-filter: blur(10px);
+    }
+    h1 {
+      margin-top: 0;
+    }
+    .test-section {
+      background: rgba(0, 0, 0, 0.2);
+      padding: 20px;
+      margin: 20px 0;
+      border-radius: 8px;
+    }
+    button {
+      background: white;
+      color: #667eea;
+      border: none;
+      padding: 12px 24px;
+      font-size: 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      margin: 10px 10px 10px 0;
+      font-weight: 600;
+    }
+    button:hover {
+      background: #f0f0f0;
+    }
+    .output {
+      background: rgba(0, 0, 0, 0.3);
+      padding: 15px;
+      border-radius: 6px;
+      margin-top: 15px;
+      white-space: pre-wrap;
+      font-family: 'Courier New', monospace;
+      font-size: 14px;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+    .status {
+      padding: 10px;
+      margin: 10px 0;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.2);
+    }
+    .success { background: rgba(76, 175, 80, 0.3); }
+    .error { background: rgba(244, 67, 54, 0.3); }
+    .info { background: rgba(33, 150, 243, 0.3); }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🧪 Desmos Transcriber - Manual Test</h1>
+    <p>This page tests the extraction logic without using the Chrome extension framework.</p>
+    
+    <div class="test-section">
+      <h2>Test 1: Check if Desmos is loaded</h2>
+      <button onclick="checkDesmos()">Check Desmos</button>
+      <div id="desmosOutput" class="output"></div>
+    </div>
+    
+    <div class="test-section">
+      <h2>Test 2: Extract from Test URL</h2>
+      <p>This will open a Desmos page and attempt extraction.</p>
+      <button onclick="testExtraction()">Open Test URL</button>
+      <div id="extractOutput" class="output"></div>
+    </div>
+    
+    <div class="test-section">
+      <h2>Test 3: Manual Extraction Script</h2>
+      <p>Copy this script and run it in the Desmos page console:</p>
+      <button onclick="copyScript()">Copy Script</button>
+      <div class="output">
+// Wait for Desmos calculator
+function findCalculator() {
+  if (window.Calc && typeof window.Calc.getState === 'function') {
+    console.log('✅ Found window.Calc');
+    return window.Calc;
+  }
+  
+  const containers = document.querySelectorAll('.dcg-calculator-api-container');
+  for (let container of containers) {
+    if (container.calculator && typeof container.calculator.getState === 'function') {
+      console.log('✅ Found container.calculator');
+      return container.calculator;
+    }
+  }
+  
+  return null;
+}
+
+// Extract equations
+function extractEquations() {
+  const calc = findCalculator();
+  if (!calc) {
+    console.error('❌ Calculator not found');
+    return null;
+  }
+  
+  const state = calc.getState();
+  if (!state || !state.expressions || !state.expressions.list) {
+    console.error('❌ Invalid state');
+    return null;
+  }
+  
+  console.log('📊 Found', state.expressions.list.length, 'expressions');
+  
+  const equations = [];
+  state.expressions.list.forEach((expr, i) => {
+    if (expr.type === 'folder') {
+      equations.push({
+        type: 'folder',
+        title: expr.title || 'Folder'
+      });
+      console.log('[' + i + '] 📁', expr.title);
+    } else if (expr.latex) {
+      equations.push({
+        latex: expr.latex,
+        color: expr.color
+      });
+      console.log('[' + i + '] 📐', expr.latex.substring(0, 40));
+    }
+  });
+  
+  return equations;
+}
+
+// Run extraction
+const result = extractEquations();
+console.log('✅ Extraction complete:', result);
+result;
+      </div>
+    </div>
+    
+    <div class="test-section">
+      <h2>Test 4: Extension Storage Check</h2>
+      <p>Check what's stored in the extension's storage:</p>
+      <button onclick="checkStorage()">Check Storage</button>
+      <button onclick="clearStorage()">Clear Storage</button>
+      <div id="storageOutput" class="output"></div>
+    </div>
+  </div>
+  
+  <script>
+    function log(elementId, message, type = 'info') {
+      const output = document.getElementById(elementId);
+      const statusClass = type === 'error' ? 'error' : (type === 'success' ? 'success' : 'info');
+      output.innerHTML = `<div class="status ${statusClass}">${message}</div>`;
+    }
+    
+    function checkDesmos() {
+      log('desmosOutput', 'Checking for Desmos on current page...', 'info');
+      
+      setTimeout(() => {
+        const checks = [];
+        checks.push('window.Calc exists: ' + (typeof window.Calc !== 'undefined'));
+        checks.push('window.Desmos exists: ' + (typeof window.Desmos !== 'undefined'));
+        
+        if (window.Calc && typeof window.Calc.getState === 'function') {
+          checks.push('✅ window.Calc.getState is available');
+          try {
+            const state = window.Calc.getState();
+            checks.push('✅ Successfully called getState()');
+            checks.push('Expressions count: ' + (state.expressions?.list?.length || 0));
+          } catch (e) {
+            checks.push('❌ Error calling getState(): ' + e.message);
+          }
+        } else {
+          checks.push('❌ window.Calc.getState not available');
+          checks.push('\n⚠️ This page is NOT a Desmos calculator page');
+          checks.push('You need to navigate to: https://www.desmos.com/calculator/');
+        }
+        
+        log('desmosOutput', checks.join('\n'), 'info');
+      }, 500);
+    }
+    
+    function testExtraction() {
+      const testUrl = 'https://www.desmos.com/calculator/ispi70ryez';
+      log('extractOutput', '🚀 Opening test URL in new tab...\n\nURL: ' + testUrl + '\n\nFollow these steps:\n1. Wait for the page to fully load\n2. Open DevTools (F12) in that tab\n3. Copy and run the script from Test 3\n4. Check the console for results', 'info');
+      
+      window.open(testUrl, '_blank');
+    }
+    
+    function copyScript() {
+      const script = document.querySelector('.test-section:nth-of-type(3) .output').textContent;
+      navigator.clipboard.writeText(script).then(() => {
+        alert('✅ Script copied to clipboard!\n\nNow:\n1. Open a Desmos calculator page\n2. Press F12 to open DevTools\n3. Go to Console tab\n4. Paste the script and press Enter');
+      });
+    }
+    
+    function checkStorage() {
+      if (typeof chrome !== 'undefined' && chrome.storage) {
+        chrome.storage.local.get(null, (data) => {
+          const output = [];
+          output.push('📦 Chrome Storage Contents:');
+          output.push('');
+          
+          if (Object.keys(data).length === 0) {
+            output.push('(empty - no data stored)');
+          } else {
+            for (const [key, value] of Object.entries(data)) {
+              if (key === 'equations' && Array.isArray(value)) {
+                output.push(`${key}: Array with ${value.length} items`);
+              } else if (typeof value === 'string' && value.length > 100) {
+                output.push(`${key}: ${value.substring(0, 100)}...`);
+              } else {
+                output.push(`${key}: ${JSON.stringify(value, null, 2)}`);
+              }
+            }
+          }
+          
+          log('storageOutput', output.join('\n'), 'success');
+        });
+      } else {
+        log('storageOutput', '❌ Chrome storage API not available.\n\nThis only works in the context of a Chrome extension.\n\nTo check storage:\n1. Open the extension popup\n2. Press F12 to open DevTools\n3. Go to Application → Storage → Local Storage', 'error');
+      }
+    }
+    
+    function clearStorage() {
+      if (typeof chrome !== 'undefined' && chrome.storage) {
+        chrome.storage.local.clear(() => {
+          log('storageOutput', '✅ Storage cleared successfully', 'success');
+        });
+      } else {
+        log('storageOutput', '❌ Chrome storage API not available', 'error');
+      }
+    }
+    
+    // Check on load
+    window.addEventListener('load', () => {
+      checkDesmos();
+    });
+  </script>
+</body>
+</html>

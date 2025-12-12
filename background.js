@@ -1,86 +1,157 @@
 // Background service worker for Desmos Transcriber
+console.log('Desmos Transcriber background script loaded');
 
-// Listen for messages from transcribe.js
+// Track extraction state
+let extractionState = {
+  tabId: null,
+  inProgress: false
+};
+
+// Listen for messages
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'extractFromUrl') {
     handleUrlExtraction(request.url)
       .then(() => sendResponse({ success: true }))
-      .catch(error => sendResponse({ success: false, error: error.message }));
-    return true; // Keep channel open for async response
+      .catch(error => {
+        console.error('Extraction error:', error);
+        sendResponse({ success: false, error: error.message });
+      });
+    return true; // Keep channel open
+  }
+  
+  if (request.action === 'extractionComplete') {
+    // Content script finished extraction
+    console.log('Extraction complete:', request.data);
+    handleExtractionComplete(request.data);
+    sendResponse({ success: true });
+    return false;
   }
 });
 
-// Handle extraction from a URL (entered by user)
+// Handle extraction from URL
 async function handleUrlExtraction(url) {
-  // Clear any previous data
-  await chrome.storage.local.remove(['equations', 'sourceUrl', 'error']);
+  if (extractionState.inProgress) {
+    throw new Error('Extraction already in progress');
+  }
   
-  // Open the URL in a new tab (VISIBLE so user can see what's happening)
-  console.log('Opening Desmos URL:', url);
-  const tab = await chrome.tabs.create({ url: url, active: true });
+  console.log('Starting extraction from:', url);
+  extractionState.inProgress = true;
   
-  // Wait for the page to fully load
-  await new Promise((resolve) => {
-    chrome.tabs.onUpdated.addListener(function listener(tabId, info) {
-      if (tabId === tab.id && info.status === 'complete') {
-        chrome.tabs.onUpdated.removeListener(listener);
-        resolve();
-      }
-    });
-  });
-  
-  // Wait a moment for content script to inject
-  console.log('Waiting for content script to inject...');
-  await new Promise(resolve => setTimeout(resolve, 2000));
-  
-  // Send message to content script to extract
-  console.log('Sending extraction request to content script...');
+  // Clear previous data
+  await chrome.storage.local.remove(['equations', 'sourceUrl', 'error', 'debugLog']);
   
   try {
-    const response = await chrome.tabs.sendMessage(tab.id, { action: 'extract' });
+    // Open Desmos page
+    console.log('Opening Desmos tab...');
+    const tab = await chrome.tabs.create({ url: url, active: true });
+    extractionState.tabId = tab.id;
     
-    if (response && response.success) {
-      const { equations, debugLog } = response.data;
-      
-      console.log(`✓ Extracted ${equations.length} equations`);
-      
-      if (equations && equations.length > 0) {
-        await chrome.storage.local.set({ 
-          equations: equations,
-          sourceUrl: url,
-          debugLog: debugLog
-        });
-      } else {
-        await chrome.storage.local.set({ 
-          error: 'No equations found. Check the debug log below.',
-          sourceUrl: url,
-          debugLog: debugLog
-        });
-      }
-    } else {
-      await chrome.storage.local.set({ 
-        error: response.error || 'Extraction failed',
-        sourceUrl: url,
-        debugLog: response.data?.debugLog || 'Unknown error'
-      });
-    }
+    // Store the URL immediately
+    await chrome.storage.local.set({ sourceUrl: url });
     
-    await chrome.tabs.remove(tab.id);
+    // Wait for tab to be fully loaded
+    console.log('Waiting for tab to load...');
+    await waitForTabLoad(tab.id);
+    
+    // Wait additional time for Desmos to initialize (longer wait)
+    console.log('Waiting for Desmos to initialize...');
+    await new Promise(resolve => setTimeout(resolve, 5000));
+    
+    // Now send extract message to content script
+    console.log('Sending extract message to content script...');
+    await chrome.tabs.sendMessage(tab.id, { action: 'extract' });
+    
+    // Content script will call back with extractionComplete
+    // Don't close the tab here - let content script do it
     
   } catch (error) {
-    console.error('❌ Error communicating with content script:', error);
-    await chrome.tabs.remove(tab.id);
-    await chrome.storage.local.set({ 
-      error: 'Error communicating with page: ' + error.message,
-      sourceUrl: url,
-      debugLog: `Communication error: ${error.message}`
+    console.error('Error in handleUrlExtraction:', error);
+    extractionState.inProgress = false;
+    
+    // Close tab if it was opened
+    if (extractionState.tabId) {
+      try {
+        await chrome.tabs.remove(extractionState.tabId);
+      } catch (e) {
+        // Tab might already be closed
+      }
+      extractionState.tabId = null;
+    }
+    
+    // Store error
+    await chrome.storage.local.set({
+      error: error.message || 'Unknown error during extraction',
+      debugLog: error.stack || error.message
     });
+    
+    throw error;
   }
 }
 
-// When extension icon is clicked, open the transcribe page
+// Wait for tab to finish loading
+function waitForTabLoad(tabId) {
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      chrome.tabs.onUpdated.removeListener(listener);
+      reject(new Error('Tab load timeout'));
+    }, 30000); // 30 second timeout
+    
+    const listener = (updatedTabId, info) => {
+      if (updatedTabId === tabId && info.status === 'complete') {
+        clearTimeout(timeout);
+        chrome.tabs.onUpdated.removeListener(listener);
+        console.log('Tab loaded successfully');
+        resolve();
+      }
+    };
+    
+    chrome.tabs.onUpdated.addListener(listener);
+  });
+}
+
+// Handle extraction completion from content script
+async function handleExtractionComplete(data) {
+  const { equations, debugLog, error } = data;
+  
+  console.log('Handling extraction complete:', {
+    equationCount: equations?.length,
+    hasError: !!error
+  });
+  
+  if (error) {
+    await chrome.storage.local.set({
+      error: error,
+      debugLog: debugLog || 'No debug log available'
+    });
+  } else if (equations && equations.length > 0) {
+    await chrome.storage.local.set({
+      equations: equations,
+      debugLog: debugLog || 'Extraction successful'
+    });
+  } else {
+    await chrome.storage.local.set({
+      error: 'No equations found',
+      debugLog: debugLog || 'No equations in calculator'
+    });
+  }
+  
+  // Close the Desmos tab
+  if (extractionState.tabId) {
+    try {
+      await chrome.tabs.remove(extractionState.tabId);
+      console.log('Closed Desmos tab');
+    } catch (e) {
+      console.error('Error closing tab:', e);
+    }
+  }
+  
+  // Reset state
+  extractionState.tabId = null;
+  extractionState.inProgress = false;
+}
+
+// When extension icon is clicked
 chrome.action.onClicked.addListener(async (tab) => {
-  // Always open the transcription page
   const transcribePage = chrome.runtime.getURL('transcribe.html');
   await chrome.tabs.create({ url: transcribePage });
 });

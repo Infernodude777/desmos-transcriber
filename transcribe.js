@@ -1,3 +1,14 @@
+// Listen for storage changes
+chrome.storage.onChanged.addListener((changes, namespace) => {
+  if (namespace === 'local' && (changes.equations || changes.error)) {
+    console.log('📦 Storage changed, reloading page...');
+    // Small delay to ensure storage write completed
+    setTimeout(() => {
+      window.location.reload();
+    }, 200);
+  }
+});
+
 // Load and display equations
 document.addEventListener('DOMContentLoaded', async function() {
   const container = document.getElementById('equationsContainer');
