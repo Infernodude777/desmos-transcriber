@@ -16,13 +16,28 @@
       <p class="source-url" id="sourceUrl"></p>
     </header>
     
-    <div class="controls">
+    <div class="url-input-section" id="urlInputSection" style="display: none;">
+      <div class="input-group">
+        <label for="desmosUrlInput">Enter Desmos Calculator URL:</label>
+        <input 
+          type="text" 
+          id="desmosUrlInput" 
+          placeholder="https://www.desmos.com/calculator/..."
+          class="url-input"
+        >
+        <button id="extractBtn" class="btn-primary">Extract Equations</button>
+      </div>
+      <p class="hint">Or click the extension icon (∑) while on a Desmos calculator page</p>
+    </div>
+    
+    <div class="controls" id="controls" style="display: none;">
       <button id="copyAllBtn" class="btn-primary">📋 Copy All Equations</button>
       <button id="downloadBtn" class="btn-secondary">💾 Download as Text</button>
+      <button id="newExtractionBtn" class="btn-tertiary">🔄 Extract Another</button>
     </div>
     
     <div class="equations-container" id="equationsContainer">
-      <div class="loading">Loading equations...</div>
+      <div class="loading">Checking for equations...</div>
     </div>
   </div>
   

@@ -50,6 +50,50 @@ h1 {
   flex-wrap: wrap;
 }
 
+.url-input-section {
+  margin-bottom: 30px;
+  padding: 25px;
+  background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%);
+  border-radius: 10px;
+  border: 2px dashed #667eea;
+}
+
+.input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.input-group label {
+  font-weight: 600;
+  color: #667eea;
+  font-size: 16px;
+}
+
+.url-input {
+  padding: 12px 15px;
+  border: 2px solid #667eea;
+  border-radius: 8px;
+  font-size: 14px;
+  font-family: 'Courier New', monospace;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.url-input:focus {
+  outline: none;
+  border-color: #5568d3;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.hint {
+  text-align: center;
+  color: #7f8c8d;
+  font-size: 14px;
+  margin-top: 15px;
+  font-style: italic;
+}
+
 button {
   padding: 12px 24px;
   border: none;
@@ -81,6 +125,17 @@ button {
   background: #38a169;
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(72, 187, 120, 0.4);
+}
+
+.btn-tertiary {
+  background: #f39c12;
+  color: white;
+}
+
+.btn-tertiary:hover {
+  background: #e67e22;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(243, 156, 18, 0.4);
 }
 
 .equations-container {

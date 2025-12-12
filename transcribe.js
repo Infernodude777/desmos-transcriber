@@ -4,6 +4,59 @@ document.addEventListener('DOMContentLoaded', async function() {
   const sourceUrl = document.getElementById('sourceUrl');
   const copyAllBtn = document.getElementById('copyAllBtn');
   const downloadBtn = document.getElementById('downloadBtn');
+  const newExtractionBtn = document.getElementById('newExtractionBtn');
+  const urlInputSection = document.getElementById('urlInputSection');
+  const urlInput = document.getElementById('desmosUrlInput');
+  const extractBtn = document.getElementById('extractBtn');
+  const controls = document.getElementById('controls');
+  
+  // Handle new extraction button
+  newExtractionBtn.addEventListener('click', () => {
+    chrome.storage.local.remove(['equations', 'sourceUrl', 'error']);
+    location.reload();
+  });
+  
+  // Handle extract button
+  extractBtn.addEventListener('click', async () => {
+    const url = urlInput.value.trim();
+    
+    if (!url) {
+      showError('Please enter a Desmos URL');
+      return;
+    }
+    
+    if (!url.includes('desmos.com/calculator')) {
+      showError('Invalid Desmos calculator URL');
+      return;
+    }
+    
+    urlInputSection.style.display = 'none';
+    container.innerHTML = '<div class="loading">Opening Desmos page and extracting equations...</div>';
+    
+    try {
+      // Send message to background script to extract from URL
+      chrome.runtime.sendMessage({
+        action: 'extractFromUrl',
+        url: url
+      }, (response) => {
+        if (chrome.runtime.lastError) {
+          showError('Error communicating with extension: ' + chrome.runtime.lastError.message);
+          urlInputSection.style.display = 'block';
+        } else if (response && response.success) {
+          // Wait a moment then reload to show the data
+          setTimeout(() => {
+            location.reload();
+          }, 1000);
+        } else {
+          showError(response?.error || 'Unknown error occurred');
+          urlInputSection.style.display = 'block';
+        }
+      });
+    } catch (error) {
+      showError('Error: ' + error.message);
+      urlInputSection.style.display = 'block';
+    }
+  });
   
   try {
     // Get stored equation data
@@ -18,15 +71,18 @@ document.addEventListener('DOMContentLoaded', async function() {
           <br>
           <p><strong>Tips:</strong></p>
           <ul style="text-align: left; display: inline-block;">
-            <li>Make sure you're on a Desmos calculator page</li>
-            <li>Wait for the page to fully load before clicking the extension</li>
-            <li>Try refreshing the Desmos page</li>
-            <li>Check the browser console for more details</li>
+            <li>Make sure the Desmos page is fully loaded (wait 3-5 seconds)</li>
+            <li>Try entering the URL below instead of clicking from the page</li>
+            <li>Refresh the Desmos page and try again</li>
+            <li>Check the browser console (F12) for more details</li>
           </ul>
-          <br><br>
-          <p>Source URL: <code>${data.sourceUrl || 'Unknown'}</code></p>
         </div>
       `;
+      
+      urlInputSection.style.display = 'block';
+      if (data.sourceUrl) {
+        urlInput.value = data.sourceUrl;
+      }
       
       // Clear the error for next time
       chrome.storage.local.remove(['error']);
@@ -34,11 +90,15 @@ document.addEventListener('DOMContentLoaded', async function() {
     }
     
     if (!data.equations || data.equations.length === 0) {
-      showEmptyState();
+      // Show input form
+      urlInputSection.style.display = 'block';
+      container.innerHTML = '<div class="empty-state"><p>Enter a Desmos calculator URL above to extract equations</p></div>';
       return;
     }
     
+    // We have equations! Show them
     sourceUrl.textContent = `Source: ${data.sourceUrl || 'Unknown'}`;
+    controls.style.display = 'flex';
     
     console.log('Processing equations:', data.equations);
     
@@ -74,8 +134,19 @@ document.addEventListener('DOMContentLoaded', async function() {
         <p>Check the browser console for more details.</p>
       </div>
     `;
+    urlInputSection.style.display = 'block';
   }
 });
+
+function showError(message) {
+  const container = document.getElementById('equationsContainer');
+  container.innerHTML = `
+    <div class="empty-state error-state">
+      <h2>⚠️ Error</h2>
+      <p>${message}</p>
+    </div>
+  `;
+}
 
 function processEquations(equations) {
   const processed = [];
