@@ -127,7 +127,7 @@ async function handleUrlExtraction(url) {
 
 // Check if Desmos calculator is ready
 function checkDesmosReady() {
-  // Check if window.Calc exists and has getState
+  // First check the standard methods
   if (window.Calc && typeof window.Calc.getState === 'function') {
     try {
       const state = window.Calc.getState();
@@ -139,13 +139,56 @@ function checkDesmosReady() {
     }
   }
   
-  // Check if Desmos namespace exists with calculator instances
+  // Check Desmos namespace with calculator instances
   if (window.Desmos) {
     const containers = document.querySelectorAll('.dcg-calculator-api-container');
     for (let container of containers) {
       if (container.calculator && typeof container.calculator.getState === 'function') {
         try {
           const state = container.calculator.getState();
+          if (state && state.expressions) {
+            return true;
+          }
+        } catch (e) {
+          continue;
+        }
+      }
+    }
+  }
+  
+  // NEW: Try to find calculator in any global object
+  // Sometimes it's attached to __DESMOS__ or similar
+  for (let key of ['__DESMOS__', 'Desmos', 'calculator', 'calc', 'Calculator']) {
+    if (window[key]) {
+      try {
+        // Try direct access
+        if (typeof window[key].getState === 'function') {
+          const state = window[key].getState();
+          if (state && state.expressions) {
+            return true;
+          }
+        }
+        // Try accessing calculator property
+        if (window[key].calculator && typeof window[key].calculator.getState === 'function') {
+          const state = window[key].calculator.getState();
+          if (state && state.expressions) {
+            return true;
+          }
+        }
+      } catch (e) {
+        continue;
+      }
+    }
+  }
+  
+  // NEW: Scan elements more thoroughly for calculator objects
+  const containers = document.querySelectorAll('[class*="dcg-"], [class*="calculator"], [id*="calculator"]');
+  for (let elem of containers) {
+    // Check multiple possible property names
+    for (let prop of ['calculator', 'calc', '_calculator', '__calculator']) {
+      if (elem[prop] && typeof elem[prop].getState === 'function') {
+        try {
+          const state = elem[prop].getState();
           if (state && state.expressions) {
             return true;
           }
@@ -277,15 +320,56 @@ function extractDesmosData() {
       
       for (let elem of calcElements) {
         log('Checking element: ' + elem.className);
-        if (elem.calculator && typeof elem.calculator.getState === 'function') {
-          calculator = elem.calculator;
-          log('✓ Found calculator via DOM element');
-          break;
+        // Try multiple property names
+        for (let prop of ['calculator', 'calc', '_calculator', '__calculator', 'Calc']) {
+          if (elem[prop] && typeof elem[prop].getState === 'function') {
+            calculator = elem[prop];
+            log(`✓ Found calculator via DOM element.${prop}`);
+            break;
+          }
+        }
+        if (calculator) break;
+      }
+    }
+    
+    // Method 5: Check common global variable names
+    if (!calculator) {
+      log('Checking common global variable names...');
+      const globalNames = ['__DESMOS__', 'calculator', 'calc', 'Calculator', '_calculator'];
+      for (let name of globalNames) {
+        if (window[name]) {
+          log(`Checking window.${name}...`);
+          // Try direct access
+          if (typeof window[name].getState === 'function') {
+            try {
+              const testState = window[name].getState();
+              if (testState && testState.expressions) {
+                calculator = window[name];
+                log(`✓ Found calculator via window.${name}`);
+                break;
+              }
+            } catch (e) {
+              log(`  window.${name} has getState but threw error`);
+            }
+          }
+          // Try .calculator property
+          if (window[name].calculator && typeof window[name].calculator.getState === 'function') {
+            try {
+              const testState = window[name].calculator.getState();
+              if (testState && testState.expressions) {
+                calculator = window[name].calculator;
+                log(`✓ Found calculator via window.${name}.calculator`);
+                break;
+              }
+            } catch (e) {
+              log(`  window.${name}.calculator has getState but threw error`);
+            }
+          }
         }
       }
     }
     
-    // Method 5: Last resort - check all elements for calculator property
+    // Method 6: Last resort - check all elements for calculator property
     if (!calculator) {
       log('Last resort: checking all elements...');
       const allElements = document.querySelectorAll('*');
