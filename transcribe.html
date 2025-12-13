@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Desmos Transcriber</title>
   <link rel="stylesheet" href="styles.css">
+  <script src="https://www.desmos.com/api/v1.9/calculator.js?apiKey=dcb31709b452b1cf9dc26972add0fda6"></script>
 </head>
 <body>
   <div class="container">
@@ -21,7 +22,7 @@
       <span id="status" class="status-text"></span>
     </div>
     
-    <iframe id="desmosFrame" class="calculator-container" src="https://www.desmos.com/calculator" frameborder="0"></iframe>
+    <div id="calculator" class="calculator-container"></div>
     
     <div id="controls" class="controls" style="display: none;">
       <button id="copyAllBtn" class="action-btn">📋 Copy All</button>
