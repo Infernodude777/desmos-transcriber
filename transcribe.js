@@ -1,12 +1,12 @@
-// Desmos Transcriber - API Version
-let calculator = null;
-let currentUrl = '';
+// Desmos Transcriber - Manual LaTeX Input
+let desmosFrame = null;
 
 document.addEventListener('DOMContentLoaded', () => {
-  const calculatorElement = document.getElementById('calculator');
+  desmosFrame = document.getElementById('desmosFrame');
   const urlInput = document.getElementById('desmosUrlInput');
   const loadBtn = document.getElementById('loadBtn');
   const clearBtn = document.getElementById('clearBtn');
+  const latexInput = document.getElementById('latexInput');
   const transcribeBtn = document.getElementById('transcribeBtn');
   const status = document.getElementById('status');
   const controls = document.getElementById('controls');
@@ -14,13 +14,14 @@ document.addEventListener('DOMContentLoaded', () => {
   const copyAllBtn = document.getElementById('copyAllBtn');
   const downloadBtn = document.getElementById('downloadBtn');
   
-  // Initialize Desmos Calculator
-  calculator = Desmos.GraphingCalculator(calculatorElement);
-  console.log('✅ Calculator initialized');
-  showStatus('Calculator ready - add equations or load a graph', 'success');
+  // Wait for iframe to load
+  desmosFrame.onload = () => {
+    console.log('✅ Calculator loaded');
+    showStatus('Calculator ready - create equations and copy LaTeX to transcribe', 'success');
+  };
   
   // Load graph from URL
-  loadBtn.addEventListener('click', async () => {
+  loadBtn.addEventListener('click', () => {
     const url = urlInput.value.trim();
     
     if (!url) {
@@ -33,102 +34,55 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
     
-    // Extract graph ID
-    const match = url.match(/calculator\/([a-zA-Z0-9]+)/);
-    if (!match) {
-      showStatus('Invalid graph URL format', 'error');
-      return;
-    }
-    
-    const graphId = match[1];
     showStatus('Loading graph...', 'info');
-    currentUrl = url;
-    
-    try {
-      // Use background script to fetch graph state
-      chrome.runtime.sendMessage(
-        { action: 'fetchGraphData', graphId: graphId },
-        (response) => {
-          if (chrome.runtime.lastError) {
-            showStatus('Error: ' + chrome.runtime.lastError.message, 'error');
-            return;
-          }
-          
-          if (!response.success) {
-            showStatus('Error loading graph: ' + response.error, 'error');
-            return;
-          }
-          
-          // Set calculator state
-          calculator.setState(response.data.state);
-          showStatus('Graph loaded successfully!', 'success');
-        }
-      );
-    } catch (error) {
-      showStatus('Error: ' + error.message, 'error');
-    }
+    desmosFrame.src = url;
   });
   
   // Clear calculator
   clearBtn.addEventListener('click', () => {
-    calculator.setBlank();
+    desmosFrame.src = 'https://www.desmos.com/calculator';
     equationsContainer.innerHTML = '';
     controls.style.display = 'none';
     urlInput.value = '';
-    currentUrl = '';
+    latexInput.value = '';
     showStatus('Calculator cleared', 'info');
   });
   
-  // Transcribe equations
-  transcribeBtn.addEventListener('click', async () => {
-    showStatus('Extracting equations...', 'info');
+  // Transcribe equations from manual LaTeX input
+  transcribeBtn.addEventListener('click', () => {
+    const latexText = latexInput.value.trim();
     
-    try {
-      // Get calculator state directly from API
-      const state = calculator.getState();
-      
-      if (!state || !state.expressions || !state.expressions.list) {
-        showStatus('No equations found', 'error');
-        return;
-      }
-      
-      const list = state.expressions.list;
-      console.log(`Found ${list.length} expressions`);
-      
-      if (list.length === 0) {
-        showStatus('Calculator is empty', 'error');
-        equationsContainer.innerHTML = '<div class="empty-state">Add equations to the calculator first</div>';
-        return;
-      }
-      
-      // Process equations
-      const equations = [];
-      list.forEach((expr) => {
-        if (expr.type === 'folder') {
-          equations.push({
-            type: 'folder',
-            title: expr.title || 'Folder',
-            id: expr.id
-          });
-        } else if (expr.latex) {
-          equations.push({
-            type: 'equation',
-            latex: expr.latex,
-            color: expr.color || '#000000',
-            folderId: expr.folderId || null
-          });
-        }
-      });
-      
-      // Display transcribed equations
-      displayEquations(equations);
-      showStatus(`✅ Transcribed ${equations.length} items`, 'success');
-      controls.style.display = 'flex';
-      
-    } catch (error) {
-      console.error('Error transcribing:', error);
-      showStatus('Error: ' + error.message, 'error');
+    if (!latexText) {
+      showStatus('Please paste LaTeX equations first', 'error');
+      return;
     }
+    
+    showStatus('Transcribing...', 'info');
+    
+    // Split by newlines or commas
+    let latexEquations = latexText
+      .split(/[\n,]/)
+      .map(eq => eq.trim())
+      .filter(eq => eq.length > 0);
+    
+    console.log(`Found ${latexEquations.length} equations`);
+    
+    if (latexEquations.length === 0) {
+      showStatus('No valid equations found', 'error');
+      return;
+    }
+    
+    // Process equations
+    const equations = latexEquations.map(latex => ({
+      type: 'equation',
+      latex: latex,
+      color: '#000000'
+    }));
+    
+    // Display transcribed equations
+    displayEquations(equations);
+    showStatus(`✅ Transcribed ${equations.length} equations`, 'success');
+    controls.style.display = 'flex';
   });
   
   // Copy all equations

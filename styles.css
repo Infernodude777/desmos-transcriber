@@ -73,6 +73,41 @@ h1 {
 }
 
 /* Transcribe Section */
+.latex-input-section {
+  background: rgba(255, 255, 255, 0.95);
+  padding: 20px;
+  border-radius: 12px;
+  margin: 20px 0;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+}
+
+.latex-input-section label {
+  display: block;
+  margin-bottom: 10px;
+  font-weight: 600;
+  color: #2c3e50;
+  font-size: 16px;
+}
+
+#latexInput {
+  width: 100%;
+  min-height: 150px;
+  padding: 12px 15px;
+  font-size: 14px;
+  font-family: 'Courier New', monospace;
+  border: 2px solid #667eea;
+  border-radius: 8px;
+  outline: none;
+  resize: vertical;
+  transition: all 0.3s ease;
+  margin-bottom: 15px;
+}
+
+#latexInput:focus {
+  border-color: #764ba2;
+  box-shadow: 0 0 0 3px rgba(118, 75, 162, 0.1);
+}
+
 .transcribe-section {
   text-align: center;
   margin: 20px 0;

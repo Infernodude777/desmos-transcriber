@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Desmos Transcriber</title>
   <link rel="stylesheet" href="styles.css">
-  <script src="https://www.desmos.com/api/v1.9/calculator.js?apiKey=dcb31709b452b1cf9dc26972add0fda6"></script>
 </head>
 <body>
   <div class="container">
@@ -17,12 +16,17 @@
       <button id="clearBtn" class="action-btn secondary">🗑️ Clear</button>
     </div>
     
-    <div class="transcribe-section">
-      <button id="transcribeBtn" class="transcribe-btn">✨ Transcribe Equations</button>
+    <iframe id="desmosFrame" class="calculator-container" src="https://www.desmos.com/calculator" frameborder="0"></iframe>
+    
+    <div class="latex-input-section">
+      <label for="latexInput">📋 Paste LaTeX from Desmos (one per line or comma-separated):</label>
+      <textarea id="latexInput" placeholder="Paste your LaTeX equations here...
+x^{2}+y^{2}=25
+y=2x+3
+..."></textarea>
+      <button id="transcribeBtn" class="transcribe-btn">✨ Transcribe to Unicode</button>
       <span id="status" class="status-text"></span>
     </div>
-    
-    <div id="calculator" class="calculator-container"></div>
     
     <div id="controls" class="controls" style="display: none;">
       <button id="copyAllBtn" class="action-btn">📋 Copy All</button>
