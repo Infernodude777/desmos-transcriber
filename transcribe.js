@@ -72,54 +72,64 @@ document.addEventListener('DOMContentLoaded', () => {
     const graphId = match[1];
     
     try {
-      // Fetch graph data from Desmos API
+      // Use background script to fetch (avoids CORS)
       showStatus('Fetching graph data...', 'info');
-      const response = await fetch(`https://saved-work.desmos.com/calc-states/production/${graphId}`);
       
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-      
-      const data = await response.json();
-      const state = data.state;
-      
-      if (!state || !state.expressions || !state.expressions.list) {
-        showStatus('No equations found', 'error');
-        return;
-      }
-      
-      const list = state.expressions.list;
-      console.log(`Found ${list.length} expressions`);
-      
-      if (list.length === 0) {
-        showStatus('Graph is empty', 'error');
-        equationsContainer.innerHTML = '<div class="empty-state">This graph has no equations</div>';
-        return;
-      }
-      
-      // Process equations
-      const equations = [];
-      list.forEach((expr) => {
-        if (expr.type === 'folder') {
-          equations.push({
-            type: 'folder',
-            title: expr.title || 'Folder',
-            id: expr.id
+      chrome.runtime.sendMessage(
+        { action: 'fetchGraphData', graphId: graphId },
+        (response) => {
+          if (chrome.runtime.lastError) {
+            showStatus('Error: ' + chrome.runtime.lastError.message, 'error');
+            return;
+          }
+          
+          if (!response.success) {
+            showStatus('Error: ' + response.error, 'error');
+            return;
+          }
+          
+          const data = response.data;
+          const state = data.state;
+          
+          if (!state || !state.expressions || !state.expressions.list) {
+            showStatus('No equations found', 'error');
+            return;
+          }
+          
+          const list = state.expressions.list;
+          console.log(`Found ${list.length} expressions`);
+          
+          if (list.length === 0) {
+            showStatus('Graph is empty', 'error');
+            equationsContainer.innerHTML = '<div class="empty-state">This graph has no equations</div>';
+            return;
+          }
+          
+          // Process equations
+          const equations = [];
+          list.forEach((expr) => {
+            if (expr.type === 'folder') {
+              equations.push({
+                type: 'folder',
+                title: expr.title || 'Folder',
+                id: expr.id
+              });
+            } else if (expr.latex) {
+              equations.push({
+                type: 'equation',
+                latex: expr.latex,
+                color: expr.color || '#000000',
+                folderId: expr.folderId || null
+              });
+            }
           });
-        } else if (expr.latex) {
-          equations.push({
-            type: 'equation',
-            latex: expr.latex,
-            color: expr.color || '#000000',
-            folderId: expr.folderId || null
-          });
+          
+          // Display transcribed equations
+          displayEquations(equations);
+          showStatus(`✅ Transcribed ${equations.length} items`, 'success');
+          controls.style.display = 'flex';
         }
-      });
-      
-      // Display transcribed equations
-      displayEquations(equations);
-      showStatus(`✅ Transcribed ${equations.length} items`, 'success');
-      controls.style.display = 'flex';
+      );
       
     } catch (error) {
       console.error('Error transcribing:', error);
