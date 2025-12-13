@@ -1,9 +1,9 @@
-// Desmos Transcriber - Embedded Calculator Version
-// Initialize Desmos calculator
-let calculator = null;
+// Desmos Transcriber - iframe Version
+let desmosFrame = null;
+let currentUrl = '';
 
 document.addEventListener('DOMContentLoaded', () => {
-  const calculatorContainer = document.getElementById('calculatorContainer');
+  desmosFrame = document.getElementById('desmosFrame');
   const urlInput = document.getElementById('desmosUrlInput');
   const loadBtn = document.getElementById('loadBtn');
   const clearBtn = document.getElementById('clearBtn');
@@ -14,22 +14,14 @@ document.addEventListener('DOMContentLoaded', () => {
   const copyAllBtn = document.getElementById('copyAllBtn');
   const downloadBtn = document.getElementById('downloadBtn');
   
-  // Initialize Desmos Calculator
-  console.log('Initializing Desmos calculator...');
-  calculator = Desmos.GraphingCalculator(calculatorContainer, {
-    expressionsCollapsed: false,
-    settingsMenu: false,
-    zoomButtons: true,
-    expressions: true,
-    keypad: true,
-    graphpaper: true,
-    showResetButtonOnGraphpaper: true
-  });
-  
-  console.log('✅ Calculator initialized');
+  // Wait for iframe to load
+  desmosFrame.onload = () => {
+    console.log('✅ Calculator loaded');
+    showStatus('Calculator ready - add equations or load a graph', 'success');
+  };
   
   // Load graph from URL
-  loadBtn.addEventListener('click', async () => {
+  loadBtn.addEventListener('click', () => {
     const url = urlInput.value.trim();
     
     if (!url) {
@@ -42,53 +34,54 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
     
-    // Extract graph ID from URL
-    const match = url.match(/calculator\/([a-zA-Z0-9]+)/);
-    if (!match) {
-      showStatus('Could not extract graph ID from URL', 'error');
-      return;
-    }
-    
-    const graphId = match[1];
     showStatus('Loading graph...', 'info');
-    
-    try {
-      // Fetch the graph state from Desmos API
-      const response = await fetch(`https://www.desmos.com/calculator/${graphId}`);
-      const html = await response.text();
-      
-      // Extract state from the HTML (it's embedded in a script tag)
-      const stateMatch = html.match(/Calc\.setState\((\{.+?\})\);?/s);
-      
-      if (stateMatch) {
-        const state = JSON.parse(stateMatch[1]);
-        calculator.setState(state);
-        showStatus('✅ Graph loaded successfully!', 'success');
-        console.log('Loaded graph:', graphId);
-      } else {
-        showStatus('Could not load graph from URL', 'error');
-      }
-    } catch (error) {
-      console.error('Error loading graph:', error);
-      showStatus('Error loading graph: ' + error.message, 'error');
-    }
+    currentUrl = url;
+    desmosFrame.src = url;
   });
   
   // Clear calculator
   clearBtn.addEventListener('click', () => {
-    calculator.setBlank();
+    desmosFrame.src = 'https://www.desmos.com/calculator';
     equationsContainer.innerHTML = '';
     controls.style.display = 'none';
+    urlInput.value = '';
+    currentUrl = '';
     showStatus('Calculator cleared', 'info');
   });
   
   // Transcribe equations
-  transcribeBtn.addEventListener('click', () => {
+  transcribeBtn.addEventListener('click', async () => {
     showStatus('Extracting equations...', 'info');
     
+    // Get URL from input or current
+    let url = currentUrl || urlInput.value.trim();
+    
+    if (!url) {
+      // Try to get from iframe src
+      url = desmosFrame.src;
+    }
+    
+    // Extract graph ID
+    const match = url.match(/calculator\/([a-zA-Z0-9]+)/);
+    if (!match) {
+      showStatus('Please load a graph first', 'error');
+      equationsContainer.innerHTML = '<div class="empty-state">Load a Desmos graph or enter a URL to transcribe equations</div>';
+      return;
+    }
+    
+    const graphId = match[1];
+    
     try {
-      // Get current state from calculator
-      const state = calculator.getState();
+      // Fetch graph data from Desmos API
+      showStatus('Fetching graph data...', 'info');
+      const response = await fetch(`https://saved-work.desmos.com/calc-states/production/${graphId}`);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      const state = data.state;
       
       if (!state || !state.expressions || !state.expressions.list) {
         showStatus('No equations found', 'error');
@@ -99,14 +92,14 @@ document.addEventListener('DOMContentLoaded', () => {
       console.log(`Found ${list.length} expressions`);
       
       if (list.length === 0) {
-        showStatus('No equations in calculator', 'error');
-        equationsContainer.innerHTML = '<div class=\"empty-state\">The calculator is empty. Add some equations first!</div>';
+        showStatus('Graph is empty', 'error');
+        equationsContainer.innerHTML = '<div class="empty-state">This graph has no equations</div>';
         return;
       }
       
       // Process equations
       const equations = [];
-      list.forEach((expr, i) => {
+      list.forEach((expr) => {
         if (expr.type === 'folder') {
           equations.push({
             type: 'folder',
@@ -138,7 +131,7 @@ document.addEventListener('DOMContentLoaded', () => {
   copyAllBtn.addEventListener('click', () => {
     const text = equationsContainer.innerText;
     copyToClipboard(text);
-    showStatus('✅ Copied to clipboard!', 'success');
+    showStatus('✅ Copied!', 'success');
   });
   
   // Download equations
@@ -197,9 +190,6 @@ function displayEquations(equations) {
 function transcribeLatex(latex) {
   let result = latex;
   
-  // Remove extra whitespace
-  result = result.replace(/\s+/g, ' ');
-  
   // Greek letters
   const greekMap = {
     '\\alpha': 'α', '\\beta': 'β', '\\gamma': 'γ', '\\delta': 'δ',
@@ -213,11 +203,11 @@ function transcribeLatex(latex) {
     '\\Psi': 'Ψ', '\\Omega': 'Ω'
   };
   
-  for (const [latex, unicode] of Object.entries(greekMap)) {
-    result = result.replace(new RegExp(latex.replace(/\\/g, '\\\\'), 'g'), unicode);
+  for (const [tex, unicode] of Object.entries(greekMap)) {
+    result = result.replace(new RegExp(tex.replace(/\\/g, '\\\\'), 'g'), unicode);
   }
   
-  // Mathematical operators and symbols
+  // Mathematical operators
   result = result.replace(/\\le(?:q)?/g, '≤');
   result = result.replace(/\\ge(?:q)?/g, '≥');
   result = result.replace(/\\ne(?:q)?/g, '≠');
@@ -271,7 +261,7 @@ function transcribeLatex(latex) {
     result = formatPiecewise(result);
   }
   
-  // Vectors - convert (a,b,c) to ⟨a,b,c⟩ when it's clearly a vector
+  // Vectors - convert (a,b,c) to ⟨a,b,c⟩
   result = result.replace(/\(([^)]+,[^)]+)\)/g, '⟨$1⟩');
   
   return result.trim();
