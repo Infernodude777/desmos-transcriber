@@ -19,21 +19,43 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 async function fetchGraphData(graphId) {
   console.log('Fetching graph data for:', graphId);
   
-  try {
-    const response = await fetch(`https://saved-work.desmos.com/calc-states/production/${graphId}`);
-    
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+  // Try multiple possible endpoints
+  const endpoints = [
+    `https://www.desmos.com/calculator/${graphId}`,
+    `https://saved-work.desmos.com/calc-states/production/${graphId}`,
+    `https://www.desmos.com/api/v1/calculator/state/${graphId}`,
+  ];
+  
+  for (const endpoint of endpoints) {
+    try {
+      console.log('Trying endpoint:', endpoint);
+      const response = await fetch(endpoint);
+      
+      if (response.ok) {
+        // Check if it's JSON
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          const data = await response.json();
+          console.log('Graph data fetched successfully from:', endpoint);
+          return data;
+        } else {
+          // Try to parse HTML and extract state
+          const html = await response.text();
+          const stateMatch = html.match(/window\.Calc\.setState\((.*?)\);/s);
+          if (stateMatch) {
+            const state = JSON.parse(stateMatch[1]);
+            console.log('Extracted state from HTML');
+            return { state: state };
+          }
+        }
+      }
+    } catch (error) {
+      console.log('Failed with endpoint:', endpoint, error.message);
+      continue;
     }
-    
-    const data = await response.json();
-    console.log('Graph data fetched successfully');
-    return data;
-    
-  } catch (error) {
-    console.error('Error fetching graph:', error);
-    throw error;
   }
+  
+  throw new Error('Could not fetch graph from any endpoint');
 }
 
 // When extension icon is clicked

@@ -21,7 +21,7 @@ document.addEventListener('DOMContentLoaded', () => {
   };
   
   // Load graph from URL
-  loadBtn.addEventListener('click', () => {
+  loadBtn.addEventListener('click', async () => {
     const url = urlInput.value.trim();
     
     if (!url) {
@@ -34,8 +34,53 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
     
-    showStatus('Loading graph...', 'info');
+    // Extract graph ID
+    const match = url.match(/calculator\/([a-zA-Z0-9]+)/);
+    if (!match) {
+      showStatus('Loading basic calculator...', 'info');
+      desmosFrame.src = url;
+      return;
+    }
+    
+    const graphId = match[1];
+    showStatus('Loading graph and extracting equations...', 'info');
     desmosFrame.src = url;
+    
+    // Fetch graph data via background script
+    chrome.runtime.sendMessage(
+      { action: 'fetchGraphData', graphId: graphId },
+      (response) => {
+        if (chrome.runtime.lastError) {
+          showStatus('Graph loaded (manual paste needed)', 'info');
+          return;
+        }
+        
+        if (!response.success) {
+          showStatus('Graph loaded (manual paste needed)', 'info');
+          return;
+        }
+        
+        // Extract LaTeX from graph data
+        const state = response.data.state;
+        if (state && state.expressions && state.expressions.list) {
+          const latexEquations = [];
+          state.expressions.list.forEach((expr) => {
+            if (expr.latex && expr.type !== 'folder') {
+              latexEquations.push(expr.latex);
+            }
+          });
+          
+          if (latexEquations.length > 0) {
+            latexInput.value = latexEquations.join(';\n');
+            showStatus(`✅ Loaded ${latexEquations.length} equations`, 'success');
+          } else {
+            showStatus('Graph loaded (no equations found)', 'info');
+          }
+        } else {
+          showStatus('Graph loaded', 'info');
+        }
+      }
+    );
   });
   
   // Clear calculator
@@ -59,9 +104,9 @@ document.addEventListener('DOMContentLoaded', () => {
     
     showStatus('Transcribing...', 'info');
     
-    // Split by newlines or commas
+    // Split by semicolons or newlines
     let latexEquations = latexText
-      .split(/[\n,]/)
+      .split(/[;\n]/)
       .map(eq => eq.trim())
       .filter(eq => eq.length > 0);
     
@@ -87,15 +132,21 @@ document.addEventListener('DOMContentLoaded', () => {
   
   // Copy all equations
   copyAllBtn.addEventListener('click', () => {
-    const text = equationsContainer.innerText;
-    copyToClipboard(text);
+    // Get only the equation text, not the copy button emojis
+    const equations = Array.from(equationsContainer.querySelectorAll('.equation-text'))
+      .map(el => el.textContent)
+      .join('\n');
+    copyToClipboard(equations);
     showStatus('✅ Copied!', 'success');
   });
   
   // Download equations
   downloadBtn.addEventListener('click', () => {
-    const text = equationsContainer.innerText;
-    downloadAsText(text, 'desmos-equations.txt');
+    // Get only the equation text, not the copy button emojis
+    const equations = Array.from(equationsContainer.querySelectorAll('.equation-text'))
+      .map(el => el.textContent)
+      .join('\n');
+    downloadAsText(equations, 'desmos-equations.txt');
     showStatus('✅ Downloaded!', 'success');
   });
 });
@@ -132,7 +183,9 @@ function displayEquations(equations) {
       const copyBtn = document.createElement('button');
       copyBtn.className = 'copy-btn';
       copyBtn.textContent = '📋';
+      copyBtn.title = 'Copy equation';
       copyBtn.onclick = () => {
+        // Copy only the transcribed text, not the button
         copyToClipboard(transcribed);
         showStatus('Copied!', 'success');
       };
@@ -147,6 +200,17 @@ function displayEquations(equations) {
 // Transcribe LaTeX to Unicode
 function transcribeLatex(latex) {
   let result = latex;
+  
+  // Remove \left and \right FIRST before other substitutions
+  result = result.replace(/\\left\\?/g, '');
+  result = result.replace(/\\right\\?/g, '');
+  result = result.replace(/\\left/g, '');
+  result = result.replace(/\\right/g, '');
+  
+  // Detect piecewise functions and handle separately
+  if (isPiecewise(result)) {
+    return formatPiecewise(result);
+  }
   
   // Greek letters
   const greekMap = {
@@ -165,10 +229,26 @@ function transcribeLatex(latex) {
     result = result.replace(new RegExp(tex.replace(/\\/g, '\\\\'), 'g'), unicode);
   }
   
-  // Mathematical operators
-  result = result.replace(/\\le(?:q)?/g, '≤');
-  result = result.replace(/\\ge(?:q)?/g, '≥');
-  result = result.replace(/\\ne(?:q)?/g, '≠');
+  // Trig and log functions (before operators to avoid conflicts)
+  result = result.replace(/\\sin/g, 'sin');
+  result = result.replace(/\\cos/g, 'cos');
+  result = result.replace(/\\tan/g, 'tan');
+  result = result.replace(/\\csc/g, 'csc');
+  result = result.replace(/\\sec/g, 'sec');
+  result = result.replace(/\\cot/g, 'cot');
+  result = result.replace(/\\arcsin/g, 'arcsin');
+  result = result.replace(/\\arccos/g, 'arccos');
+  result = result.replace(/\\arctan/g, 'arctan');
+  result = result.replace(/\\ln/g, 'ln');
+  result = result.replace(/\\log/g, 'log');
+  
+  // Mathematical operators (after checking for longer commands)
+  result = result.replace(/\\leq/g, '≤');
+  result = result.replace(/\\le(?!q|ft)/g, '≤');
+  result = result.replace(/\\geq/g, '≥');
+  result = result.replace(/\\ge(?!q)/g, '≥');
+  result = result.replace(/\\neq/g, '≠');
+  result = result.replace(/\\ne(?!q)/g, '≠');
   result = result.replace(/\\approx/g, '≈');
   result = result.replace(/\\infty/g, '∞');
   result = result.replace(/\\pm/g, '±');
@@ -182,16 +262,19 @@ function transcribeLatex(latex) {
   result = result.replace(/\\prod/g, '∏');
   result = result.replace(/\\partial/g, '∂');
   result = result.replace(/\\nabla/g, '∇');
+  result = result.replace(/\\lim/g, 'lim');
   
   // Superscripts
   result = result.replace(/\^{([^}]+)}/g, (match, content) => {
     return toSuperscript(content);
   });
+  result = result.replace(/\^(\d)/g, (match, digit) => toSuperscript(digit));
   
   // Subscripts
   result = result.replace(/_{([^}]+)}/g, (match, content) => {
     return toSubscript(content);
   });
+  result = result.replace(/_(\d)/g, (match, digit) => toSubscript(digit));
   
   // Fractions
   result = result.replace(/\\frac{([^}]+)}{([^}]+)}/g, '($1/$2)');
@@ -200,53 +283,114 @@ function transcribeLatex(latex) {
   result = result.replace(/\\sqrt{([^}]+)}/g, '√($1)');
   result = result.replace(/\\sqrt\[([^\]]+)\]{([^}]+)}/g, '$1√($2)');
   
-  // Trig functions
-  result = result.replace(/\\sin/g, 'sin');
-  result = result.replace(/\\cos/g, 'cos');
-  result = result.replace(/\\tan/g, 'tan');
-  result = result.replace(/\\csc/g, 'csc');
-  result = result.replace(/\\sec/g, 'sec');
-  result = result.replace(/\\cot/g, 'cot');
+  // Clean up escaped brackets
+  result = result.replace(/\\\{/g, '{');
+  result = result.replace(/\\\}/g, '}');
+  result = result.replace(/\\\(/g, '(');
+  result = result.replace(/\\\)/g, ')');
+  result = result.replace(/\\\[/g, '[');
+  result = result.replace(/\\\]/g, ']');
   
-  // Remove \left and \right
-  result = result.replace(/\\left|\\right/g, '');
-  
-  // Clean up parentheses and brackets
-  result = result.replace(/\\[()\[\]{}]/g, match => match.slice(1));
-  
-  // Piecewise functions
-  if (result.includes('{') && result.includes(':')) {
-    result = formatPiecewise(result);
-  }
-  
-  // Vectors - convert (a,b,c) to ⟨a,b,c⟩
-  result = result.replace(/\(([^)]+,[^)]+)\)/g, '⟨$1⟩');
+  // Remove remaining backslashes from commands
+  result = result.replace(/\\/g, '');
   
   return result.trim();
 }
 
+// Detect if this is a piecewise function
+function isPiecewise(latex) {
+  // Piecewise functions have the pattern: variable = { expr : condition, expr : condition, ... }
+  return /[a-zA-Z_][a-zA-Z0-9_]*\s*\([^)]*\)\s*=\s*\{[^}]*:[^}]*\}/.test(latex) ||
+         /[a-zA-Z_][a-zA-Z0-9_]*\s*=\s*\{[^}]*:[^}]*\}/.test(latex);
+}
+
 // Format piecewise functions
 function formatPiecewise(latex) {
-  const match = latex.match(/\{(.+)\}/);
+  // Extract the function name and definition
+  const match = latex.match(/([a-zA-Z_][a-zA-Z0-9_]*(?:\([^)]*\))?)\s*=\s*\{([^}]+)\}/);
   if (!match) return latex;
   
-  const content = match[1];
-  const pieces = content.split(',').map(p => p.trim());
+  const funcName = match[1];
+  const content = match[2];
   
-  if (pieces.length === 0) return latex;
+  // Split by commas, but be careful with nested content
+  const pieces = [];
+  let current = '';
+  let braceDepth = 0;
+  let parenDepth = 0;
   
-  let result = 'f(x) = {\n';
-  pieces.forEach(piece => {
-    const parts = piece.split(':');
-    if (parts.length === 2) {
-      const condition = parts[0].trim();
-      const value = parts[1].trim();
-      result += `  ${transcribeLatex(value)}  when ${transcribeLatex(condition)}\n`;
+  for (let i = 0; i < content.length; i++) {
+    const char = content[i];
+    if (char === '{') braceDepth++;
+    if (char === '}') braceDepth--;
+    if (char === '(') parenDepth++;
+    if (char === ')') parenDepth--;
+    
+    if (char === ',' && braceDepth === 0 && parenDepth === 0) {
+      pieces.push(current.trim());
+      current = '';
+    } else {
+      current += char;
+    }
+  }
+  if (current.trim()) pieces.push(current.trim());
+  
+  // Format each piece
+  let result = `${funcName} = {\n`;
+  pieces.forEach((piece, index) => {
+    const colonIndex = piece.indexOf(':');
+    if (colonIndex > -1) {
+      const expression = piece.substring(colonIndex + 1).trim();
+      const condition = piece.substring(0, colonIndex).trim();
+      
+      // Recursively transcribe each part
+      const transcribedExpr = transcribeLatexSimple(expression);
+      const transcribedCond = transcribeLatexSimple(condition);
+      
+      result += `  ${transcribedExpr} when ${transcribedCond}`;
+      if (index < pieces.length - 1) result += ',';
+      result += '\n';
     }
   });
   result += '}';
   
   return result;
+}
+
+// Simple transcription for parts of piecewise (without piecewise detection)
+function transcribeLatexSimple(latex) {
+  let result = latex;
+  
+  // Remove \left and \right
+  result = result.replace(/\\left\\?/g, '');
+  result = result.replace(/\\right\\?/g, '');
+  result = result.replace(/\\left/g, '');
+  result = result.replace(/\\right/g, '');
+  
+  // Functions
+  result = result.replace(/\\sin/g, 'sin');
+  result = result.replace(/\\cos/g, 'cos');
+  result = result.replace(/\\tan/g, 'tan');
+  
+  // Operators
+  result = result.replace(/\\leq/g, '≤');
+  result = result.replace(/\\le(?!q|ft)/g, '≤');
+  result = result.replace(/\\geq/g, '≥');
+  result = result.replace(/\\ge(?!q)/g, '≥');
+  result = result.replace(/\\lt/g, '<');
+  result = result.replace(/\\gt/g, '>');
+  
+  // Functions shortcuts
+  const funcMap = {
+    'f': 'f', 'g': 'g', 'h': 'h', 'i': 'i', 'j': 'j',
+    'k': 'k', 'l': 'l', 'm': 'm', 'n': 'n', 'o': 'o',
+    'p': 'p', 'q': 'q', 'r': 'r'
+  };
+  
+  // Clean backslashes
+  result = result.replace(/\\/g, '');
+  
+  return result.trim();
 }
 
 // Convert to superscript
