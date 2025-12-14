@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Desmos Transcriber - Convert LaTeX to Unicode</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="container">
+    <h1>📐 Desmos Transcriber</h1>
+    <p class="subtitle">Convert LaTeX equations to clean Unicode notation</p>
+    
+    <div class="url-input-section">
+      <input type="text" id="desmosUrlInput" placeholder="Enter Desmos calculator URL to load..." />
+      <button id="loadBtn" class="action-btn">🔗 Load Graph</button>
+      <button id="clearBtn" class="action-btn secondary">🗑️ Clear</button>
+    </div>
+    
+    <iframe id="desmosFrame" class="calculator-container" src="https://www.desmos.com/calculator" frameborder="0"></iframe>
+    
+    <div class="latex-input-section">
+      <label for="latexInput">📋 Paste LaTeX from Desmos (one per line or semicolon-separated):</label>
+      <textarea id="latexInput" placeholder="Paste your LaTeX equations here...
+x^{2}+y^{2}=25;
+y=2x+3;
+f(x)=\sin(x);
+...
+
+Or load a graph URL above and copy LaTeX from the Desmos calculator"></textarea>
+      <button id="transcribeBtn" class="transcribe-btn">✨ Transcribe to Unicode</button>
+      <span id="status" class="status-text"></span>
+    </div>
+    
+    <div id="controls" class="controls" style="display: none;">
+      <button id="copyAllBtn" class="action-btn">📋 Copy All</button>
+      <button id="downloadBtn" class="action-btn">💾 Download</button>
+    </div>
+    
+    <div id="equationsContainer" class="equations-container"></div>
+  </div>
+  
+  <script src="website.js"></script>
+</body>
+</html>

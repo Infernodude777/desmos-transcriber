@@ -1,4 +1,4 @@
-// Desmos Transcriber - Manual LaTeX Input
+// Desmos Transcriber - Website Version (No Extension APIs)
 let desmosFrame = null;
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -21,7 +21,7 @@ document.addEventListener('DOMContentLoaded', () => {
   };
   
   // Load graph from URL
-  loadBtn.addEventListener('click', async () => {
+  loadBtn.addEventListener('click', () => {
     const url = urlInput.value.trim();
     
     if (!url) {
@@ -34,53 +34,13 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
     
-    // Extract graph ID
-    const match = url.match(/calculator\/([a-zA-Z0-9]+)/);
-    if (!match) {
-      showStatus('Loading basic calculator...', 'info');
-      desmosFrame.src = url;
-      return;
-    }
-    
-    const graphId = match[1];
-    showStatus('Loading graph and extracting equations...', 'info');
+    showStatus('Loading graph...', 'info');
     desmosFrame.src = url;
     
-    // Fetch graph data via background script
-    chrome.runtime.sendMessage(
-      { action: 'fetchGraphData', graphId: graphId },
-      (response) => {
-        if (chrome.runtime.lastError) {
-          showStatus('Graph loaded (manual paste needed)', 'info');
-          return;
-        }
-        
-        if (!response.success) {
-          showStatus('Graph loaded (manual paste needed)', 'info');
-          return;
-        }
-        
-        // Extract LaTeX from graph data
-        const state = response.data.state;
-        if (state && state.expressions && state.expressions.list) {
-          const latexEquations = [];
-          state.expressions.list.forEach((expr) => {
-            if (expr.latex && expr.type !== 'folder') {
-              latexEquations.push(expr.latex);
-            }
-          });
-          
-          if (latexEquations.length > 0) {
-            latexInput.value = latexEquations.join(';\n');
-            showStatus(`✅ Loaded ${latexEquations.length} equations`, 'success');
-          } else {
-            showStatus('Graph loaded (no equations found)', 'info');
-          }
-        } else {
-          showStatus('Graph loaded', 'info');
-        }
-      }
-    );
+    // Show instructions after loading
+    setTimeout(() => {
+      showStatus('Graph loaded! Now copy LaTeX from Desmos and paste below to transcribe', 'info');
+    }, 2000);
   });
   
   // Clear calculator
@@ -284,8 +244,8 @@ function transcribeLatex(latex) {
   result = result.replace(/\\sqrt\[([^\]]+)\]{([^}]+)}/g, '$1√($2)');
   
   // Clean up escaped brackets
-  result = result.replace(/\\\{/g, '{');
-  result = result.replace(/\\\}/g, '}');
+  result = result.replace(/\\{/g, '{');
+  result = result.replace(/\\}/g, '}');
   result = result.replace(/\\\(/g, '(');
   result = result.replace(/\\\)/g, ')');
   result = result.replace(/\\\[/g, '[');
